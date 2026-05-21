@@ -1,5 +1,5 @@
-from .Logger import Logger
-from .Color import Color
+from .logger import Logger
+from .color import Color
 
 
 __all__: list[str] = [

@@ -1,6 +1,6 @@
 from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
 from pathlib import Path
-from .utils import Logger, Color
+from ..utils import Logger, Color
 
 
 class Indexer:
@@ -19,7 +19,7 @@ class Indexer:
     code_splitter: RecursiveCharacterTextSplitter
 
     def __init__(self, root_path: str, maximum_chunk_size: int) -> None:
-        self.logger = Logger('Indexer', Color.CYAN, True)
+        self.logger = Logger('Indexer', True, Color.CYAN)
         self.logger.log('Initializing Indexer...')
 
         # Set config
@@ -63,7 +63,12 @@ class Indexer:
         self.logger.log(f'Indexing {file}...')
         with open(file, 'r') as f:
             content = f.read()
-        chunks = self.code_splitter.create_documents([content], metadatas=[{"source": file.as_posix()}])
+        chunks = self.code_splitter.create_documents(
+            [content],
+            metadatas=[{
+                "source": file.as_posix()
+            }]
+        )
 
         self.logger.log(f'Indexed {len(chunks)} chunks from {file} !')
 

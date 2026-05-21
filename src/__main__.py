@@ -1,5 +1,5 @@
 from fire import Fire
-from .main import RAG
+from .rag import RAG
 
 
 if __name__ == '__main__':

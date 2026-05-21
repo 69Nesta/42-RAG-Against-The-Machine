@@ -1,9 +1,7 @@
-from dataclasses import dataclass
+from .color import Color
 import datetime
-from .Color import Color
 
 
-@dataclass()
 class Logger:
     """Lightweight logger for console output.
 
@@ -12,9 +10,26 @@ class Logger:
         name (str): Name displayed in log messages.
         color (Color): Color used for the name tag.
     """
+    verbose: bool
     name: str
     color: Color
-    print_log: bool = False
+
+    def __init__(
+                self,
+                name: str = 'Logger',
+                verbose: bool = False,
+                color: Color = Color.GRAY,
+            ) -> None:
+        """Initialize a logger instance.
+
+        Args:
+            verbose: Whether to enable logging output. Defaults to False.
+            name: Display name for log messages. Defaults to 'Logger'.
+            color: ANSI color for the name tag. Defaults to Color.GRAY.
+        """
+        self.verbose = verbose
+        self.name = name
+        self.color = color
 
     def log(self, message: str, end: str | None = '\n') -> None:
         """Print a debug/info message when logging is enabled.
@@ -23,7 +38,7 @@ class Logger:
             message (str): Message to print.
             end (str | None): End character appended to the message.
         """
-        if (self.print_log):
+        if (self.verbose):
             print(f'{self._get_format()} {message}', end=end)
 
     def error(self, message: str, end: str | None = '\n') -> None:
@@ -51,6 +66,27 @@ class Logger:
             end=end
         )
 
+    @staticmethod
+    def warning_static(
+                name: str,
+                message: str,
+                color: Color = Color.WHITE,
+                end: str | None = '\n'
+            ) -> None:
+        """Print a warning message from a static context (always shown).
+
+        Args:
+            name (str): Name to include in the log prefix.
+            message (str): Warning message to print.
+            color (Color): Color to use for the name tag in the log prefix.
+            end (str | None): End character appended to the message.
+        """
+        print(
+            f'{Logger.get_format_static(color, name)} {Color.YELLOW}[WARNING]'
+            f'{Color.RESET} {message}',
+            end=end
+        )
+
     def info(self, message: str, end: str | None = '\n') -> None:
         """Print an informational message (always shown).
 
@@ -59,7 +95,8 @@ class Logger:
             end (str | None): End character appended to the message.
         """
         print(
-            f'{self._get_format()} {Color.RESET} {message}',
+            f'{self._get_format()} [{Color.BRIGHT_CYAN}INFO{Color.RESET}] '
+            f'{message}',
             end=end
         )
 
@@ -69,10 +106,22 @@ class Logger:
         Returns:
             str: Formatted prefix including time and colored name tag.
         """
-        return f'{Color.GRAY}[{self.get_date_time()}] {self.color}[' +\
-               f'{self.name}]{Color.RESET}'
+        return self.get_format_static(self.color, self.name)
 
-    def get_date_time(self) -> str:
+    @staticmethod
+    def get_format_static(color: Color, name: str) -> str:
+        """Return the formatted prefix for static contexts.
+
+        Args:
+            name (str): Name to include in the prefix.
+        Returns:
+            str: Formatted prefix including time and colored name tag.
+        """
+        return f'{Color.GRAY}[{Logger.get_date_time()}] {color}[' +\
+               f'{name}]{Color.RESET}'
+
+    @staticmethod
+    def get_date_time() -> str:
         """Return the current time string used in the log prefix.
 
         Returns:

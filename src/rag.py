@@ -5,7 +5,7 @@ class RAG:
     logger: Logger
 
     def __init__(self, verbose: bool = False) -> None:
-        self.logger = Logger('Main', Color.MAGENTA, verbose)
+        self.logger = Logger('Main', verbose, Color.MAGENTA)
         self.logger.log('Initializing RAG...')
 
     def index(
@@ -13,7 +13,7 @@ class RAG:
                 lib_path: str = 'data/raw/vllm-0.10.1',
                 maximum_chunk_size: int = 5000
             ) -> None:
-        from .Indexer import Indexer
+        from .modules.indexer import Indexer
         self.logger.log('Starting Indexer...')
         Indexer(lib_path, maximum_chunk_size)
 
