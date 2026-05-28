@@ -6,6 +6,11 @@ MYPY_FLAGS = --warn-return-any --warn-unused-ignores --ignore-missing-imports --
 install:
 	uv sync
 
+install-vllm:
+	@mkdir -p data/raw
+	@unzip vllm-0.10.1.zip -d data/raw
+	@echo "vllm-0.10.1.zip extracted to data/raw/vllm-0.10.1"
+
 run:
 	@$(UV_PY) -m src $(ARGS)
 
