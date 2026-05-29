@@ -1,4 +1,6 @@
 from .color import Color
+
+from pydantic import ValidationError
 import datetime
 
 
@@ -129,3 +131,20 @@ class Logger:
         """
         now = datetime.datetime.now()
         return now.strftime("%X")
+
+    def pydantic_error(self, e: ValidationError, message: str = '') -> None:
+        if message:
+            self.error(message)
+
+        for error in e.errors():
+            loc: tuple[int | str, ...] = error.get('loc') or ('',)
+            field = str(loc[0]) if loc else ''
+            ctx = error.get('ctx') or {}
+
+            if ctx_error := ctx.get('error'):
+                self.error(f'Error: {ctx_error}')
+            elif msg := error.get('msg'):
+                if field:
+                    self.error(f'Error: {field}: {msg}')
+                else:
+                    self.error(f'Error: {msg}')

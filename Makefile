@@ -1,5 +1,5 @@
 SRCS_DIR = src
-UV_PY = uv run python3
+UV_PY = uv run
 
 MYPY_FLAGS = --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
 
@@ -26,11 +26,11 @@ fclean: clean
 	rm -rf .venv
 
 lint:
-	$(UV_PY) -m flake8 $(SRCS_DIR)
-	$(UV_PY) -m mypy $(SRCS_DIR) $(MYPY_FLAGS)
+	$(UV_PY) flake8 $(SRCS_DIR)
+	$(UV_PY) mypy $(SRCS_DIR) $(MYPY_FLAGS)
 
 lint-strict:
-	$(UV_PY) -m flake8 $(SRCS_DIR)
-	$(UV_PY) -m mypy $(SRCS_DIR) --strict
+	$(UV_PY) flake8 $(SRCS_DIR)
+	$(UV_PY) mypy $(SRCS_DIR) --strict
 
 .PHONY: install run debug clean fclean lint lint-strict

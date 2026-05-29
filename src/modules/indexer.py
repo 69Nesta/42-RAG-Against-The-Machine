@@ -3,21 +3,38 @@ from ..enums import IndexType
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
 from langchain_core.documents import Document
+from pydantic import BaseModel, Field, model_validator
 from pathlib import Path
+import bm25s  # type: ignore
+
+
+class IndexerConfig(BaseModel):
+    root_path: str
+    maximum_chunk_size: int = Field(..., gt=0, le=2000)
+    index_type: IndexType
+    verbose: bool
+
+    processed_bm25_index_path: str = Field(..., min_length=1)
+    processed_chunks_path: str = Field(..., min_length=1)
+
+    @model_validator(mode='after')
+    def check_paths_differ(self) -> 'IndexerConfig':
+        if self.processed_bm25_index_path == self.processed_chunks_path:
+            raise ValueError(
+                'processed_bm25_index_path and processed_chunks_path must '
+                'be different!'
+            )
+        return self
 
 
 class Indexer:
     logger: Logger
-
-    # Config
-    root_path: str
-    maximum_chunk_size: int
-    index_type: IndexType
+    config: IndexerConfig
 
     ALLOWED_FILES: dict[IndexType, set[str]] = {
-        IndexType.CODE: { '.py' },
-        IndexType.DOCS: { '.md', '.toml', '.txt' },
-        IndexType.ALL: { '.py', '.md', '.toml', '.txt' }
+        IndexType.CODE: {'.py'},
+        IndexType.DOCS: {'.md', '.toml', '.txt'},
+        IndexType.ALL: {'.py', '.md', '.toml', '.txt'}
     }
 
     files_path: list[Path]
@@ -25,107 +42,135 @@ class Indexer:
     files_splitter: dict[str, RecursiveCharacterTextSplitter]
     default_splitter: RecursiveCharacterTextSplitter
 
-    def __init__(self, root_path: str, maximum_chunk_size: int, index_type: IndexType, verbose: bool) -> None:
+    def __init__(
+                self,
+                root_path: str,
+                maximum_chunk_size: int,
+                index_type: IndexType,
+                processed_bm25_index_path: str,
+                processed_chunks_path: str,
+                verbose: bool,
+            ) -> None:
         self.logger = Logger('Indexer', verbose, Color.CYAN)
         self.logger.log('Initializing Indexer...')
 
-        # Set config
-        self.root_path = root_path
-        if maximum_chunk_size <= 0:
-            raise ValueError('Maximum chunk size must be a positive integer')
-        elif maximum_chunk_size > 2000:
-            raise ValueError('Maximum chunk size must be less than or equal to 2000')
-        try:
-            self.maximum_chunk_size = int(maximum_chunk_size)
-        except ValueError as e:
-            raise ValueError(f'Invalid maximum chunk size: {e}')
-        try:
-            self.index_type = IndexType(index_type)
-        except ValueError as e:
-            raise ValueError(f'Invalid index type: {e}. Allowed values are: {[t.value for t in IndexType]}')
+        self.config = IndexerConfig(
+            root_path=root_path,
+            maximum_chunk_size=maximum_chunk_size,
+            index_type=index_type,
+            verbose=verbose,
+            processed_bm25_index_path=Path(
+                str(processed_bm25_index_path)
+            ).as_posix(),
+            processed_chunks_path=Path(
+                str(processed_chunks_path)
+            ).as_posix(),
+        )
 
         self._explore()
-        self._initalize_text_splitter()
-        self._index_code_files()
-        # self._index_docs_files()
+        self._initalize_splitters()
+        self._create_config_files()
+        self._index_files()
 
     def _explore(self) -> None:
-        path: Path = Path(self.root_path)
+        path: Path = Path(self.config.root_path)
         self.files_path = []
         self.logger.log(
             f'Exploring {path}...'
         )
 
+        allowed_ext: set[str] = self.ALLOWED_FILES.get(
+            self.config.index_type, set()
+        )
         for file in path.rglob('*'):
             if not file.is_file():
                 continue
-            if file.suffix.lower() in self.ALLOWED_FILES.get(self.index_type, {}):
+            if file.suffix.lower() in allowed_ext:
                 self.files_path.append(file)
 
         self.logger.log(
             f'Found {len(self.files_path)} files !'
         )
 
-    def _initalize_text_splitter(self) -> None:
+    def _initalize_splitters(self) -> None:
+        chunk_size: int = self.config.maximum_chunk_size
+        chunk_overlap: int = chunk_size * 5 // 100
+
         self.files_splitter = {
             '.py': RecursiveCharacterTextSplitter.from_language(
                 language=Language.PYTHON,
-                chunk_size=self.maximum_chunk_size,
-                chunk_overlap=self.maximum_chunk_size * 5 // 100,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
                 add_start_index=True,
             ),
             '.md': RecursiveCharacterTextSplitter.from_language(
                 language=Language.MARKDOWN,
-                chunk_size=self.maximum_chunk_size,
-                chunk_overlap=self.maximum_chunk_size * 5 // 100,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
                 add_start_index=True
             )
         }
         self.default_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=self.maximum_chunk_size,
-            chunk_overlap=self.maximum_chunk_size * 5 // 100,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
             add_start_index=True,
         )
 
-    def _index_code_files(self) -> None:
+    def _index_files(self) -> None:
         self.logger.log('Indexing code files...')
-        # file = self.files_path[9]
+        chunks: list[str] = []
 
         for file in self.files_path:
             self.logger.log(f'Indexing {file}...')
             content: str = ''
             try:
-                with open(file, "r") as f:
+                with open(file, 'r') as f:
                     content = f.read()
             except UnicodeDecodeError:
                 continue
 
-            chunks: list[Document] = self.files_splitter.get(
+            file_chunks: list[Document] = self.files_splitter.get(
                 file.suffix,
                 self.default_splitter
             ).create_documents(
                 [content],
                 metadatas=[{
-                    "source": file.as_posix()
+                    'file_path': file.as_posix()
                 }]
             )
 
-            self.logger.log(f'Indexed {len(chunks)} chunks from {file} !')
+            self.logger.log(f'Indexed {len(file_chunks)} chunks from {file} !')
 
-            for i, chunk in enumerate(chunks):
-                end_index: int = chunk.metadata["start_index"]
-                end_index += len(chunk.page_content)
+            for chunk in file_chunks:
+                start_index: int = chunk.metadata['start_index']
+                end_index: int = start_index + len(chunk.page_content)
 
                 chunk.metadata.update({
-                    'end_index': end_index
+                    'first_character_index': start_index,
+                    'last_character_index': end_index
                 })
-                self.logger.log(f'Chunk {i}: {len(chunk.page_content)} characters, source: {chunk.metadata}')
+                del chunk.metadata['start_index']
+                chunks.append(chunk.page_content)
 
-    # def _index_docs_files(self) -> None:
-    #     self.logger.log('Indexing docs files...')
-    #     file = self.docs_files_path[0]
-    #     # for file in self.docs_files_path:
-    #     self.logger.log(f'Indexing {file}...')
-    #     with open(file, 'r') as f:
-    #         content = f.read()
-    #     chunks = self.docs_splitter.split_text(content)
+        self.logger.log(
+            f'Indexed {len(chunks)} chunks from {len(self.files_path)} files !'
+        )
+
+        self.logger.log('Creating BM25 index...')
+        corpus_tokens = bm25s.tokenize(chunks)
+        retriever = bm25s.BM25(corpus=chunks)
+        retriever.index(corpus_tokens)
+
+        self.logger.log(
+            f'Saving BM25 index to {self.config.processed_bm25_index_path}...'
+        )
+        retriever.save(self.config.processed_bm25_index_path)
+
+    def _create_config_files(self) -> None:
+        folders: list[str] = [
+            self.config.processed_bm25_index_path,
+            self.config.processed_chunks_path
+        ]
+
+        for path in folders:
+            Path(path).mkdir(parents=True, exist_ok=True)
