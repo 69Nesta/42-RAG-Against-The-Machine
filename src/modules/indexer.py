@@ -1,3 +1,4 @@
+from ..data_models import MinimalSource
 from ..utils import Logger, Color
 from ..enums import IndexType
 
@@ -118,7 +119,8 @@ class Indexer:
 
     def _index_files(self) -> None:
         self.logger.log('Indexing code files...')
-        chunks: list[str] = []
+        corpus: list[str] = []
+        corpus_metadata: dict[int, MinimalSource] = {}
 
         for file in self.files_path:
             self.logger.log(f'Indexing {file}...')
@@ -150,15 +152,21 @@ class Indexer:
                     'last_character_index': end_index
                 })
                 del chunk.metadata['start_index']
-                chunks.append(chunk.page_content)
+
+                corpus_metadata[len(corpus)] = MinimalSource(
+                    file_path=file.as_posix(),
+                    first_character_index=start_index,
+                    last_character_index=end_index
+                )
+                corpus.append(chunk.page_content)
 
         self.logger.log(
-            f'Indexed {len(chunks)} chunks from {len(self.files_path)} files !'
+            f'Indexed {len(corpus)} chunks from {len(self.files_path)} files !'
         )
 
         self.logger.log('Creating BM25 index...')
-        corpus_tokens = bm25s.tokenize(chunks)
-        retriever = bm25s.BM25(corpus=chunks)
+        corpus_tokens = bm25s.tokenize(corpus)
+        retriever = bm25s.BM25(corpus=corpus)
         retriever.index(corpus_tokens)
 
         self.logger.log(
