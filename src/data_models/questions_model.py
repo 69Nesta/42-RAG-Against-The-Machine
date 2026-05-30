@@ -1,6 +1,6 @@
+from .minimal_source_model import MinimalSource
 from pydantic import BaseModel, Field
 import uuid
-from . import MinimalSource
 
 
 class UnansweredQuestion(BaseModel):

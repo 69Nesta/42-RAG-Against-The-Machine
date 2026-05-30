@@ -21,7 +21,9 @@ class RAG:
                 maximum_chunk_size: int = 2000,
                 index_type: IndexType = IndexType.ALL,
                 processed_bm25_index_path: str = 'data/processed/bm25_index',
-                processed_chunks_path: str = 'data/processed/chunks'
+                processed_chunks_path: str = 'data/processed/chunks',
+                processed_chunks_metadata_path: str =
+                'data/processed/chunks_metadata.json',
             ) -> None:
         from .modules.indexer import Indexer
         self.logger.log('Starting Indexer...')
@@ -33,6 +35,7 @@ class RAG:
                 index_type,
                 processed_bm25_index_path,
                 processed_chunks_path,
+                processed_chunks_metadata_path,
                 self.verbose,
             )
         except ValidationError as e:

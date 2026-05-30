@@ -133,6 +133,13 @@ class Logger:
         return now.strftime("%X")
 
     def pydantic_error(self, e: ValidationError, message: str = '') -> None:
+        """Print detailed error messages from a Pydantic ValidationError.
+
+        Args:
+            e (ValidationError): The ValidationError instance to process.
+            message (str): Optional custom message to display before error
+            details.
+        """
         if message:
             self.error(message)
 

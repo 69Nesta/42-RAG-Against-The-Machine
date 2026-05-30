@@ -1,12 +1,12 @@
-from ..data_models import MinimalSource
 from ..utils import Logger, Color
 from ..enums import IndexType
+from ..utils import JSONUtils
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
 from langchain_core.documents import Document
 from pydantic import BaseModel, Field, model_validator
 from pathlib import Path
-import bm25s  # type: ignore
+import bm25s
 
 
 class IndexerConfig(BaseModel):
@@ -17,6 +17,7 @@ class IndexerConfig(BaseModel):
 
     processed_bm25_index_path: str = Field(..., min_length=1)
     processed_chunks_path: str = Field(..., min_length=1)
+    processed_chunks_metadata_path: str = Field(..., min_length=1)
 
     @model_validator(mode='after')
     def check_paths_differ(self) -> 'IndexerConfig':
@@ -25,6 +26,20 @@ class IndexerConfig(BaseModel):
                 'processed_bm25_index_path and processed_chunks_path must '
                 'be different!'
             )
+
+        check_dir: list[str] = [
+            self.processed_bm25_index_path,
+            self.processed_chunks_path
+        ]
+        check_file: list[str] = [
+            self.processed_chunks_metadata_path
+        ]
+        for path in check_dir:
+            if not Path(path).is_dir():
+                raise ValueError(f'{path} must be a directory!')
+        for path in check_file:
+            if Path(path).is_dir():
+                raise ValueError(f'{path} must be a file!')
         return self
 
 
@@ -50,6 +65,7 @@ class Indexer:
                 index_type: IndexType,
                 processed_bm25_index_path: str,
                 processed_chunks_path: str,
+                processed_chunks_metadata_path: str,
                 verbose: bool,
             ) -> None:
         self.logger = Logger('Indexer', verbose, Color.CYAN)
@@ -66,6 +82,9 @@ class Indexer:
             processed_chunks_path=Path(
                 str(processed_chunks_path)
             ).as_posix(),
+            processed_chunks_metadata_path=Path(
+                str(processed_chunks_metadata_path)
+            ).as_posix()
         )
 
         self._explore()
@@ -120,15 +139,17 @@ class Indexer:
     def _index_files(self) -> None:
         self.logger.log('Indexing code files...')
         corpus: list[str] = []
-        corpus_metadata: dict[int, MinimalSource] = {}
+        corpus_metadata: dict[int, dict[str, str | int]] = {}
 
         for file in self.files_path:
             self.logger.log(f'Indexing {file}...')
+            file_path_str: str = file.as_posix()
             content: str = ''
             try:
                 with open(file, 'r') as f:
                     content = f.read()
             except UnicodeDecodeError:
+                self.logger.warning(f'Failed to decode {file}')
                 continue
 
             file_chunks: list[Document] = self.files_splitter.get(
@@ -137,15 +158,13 @@ class Indexer:
             ).create_documents(
                 [content],
                 metadatas=[{
-                    'file_path': file.as_posix()
+                    'file_path': file_path_str
                 }]
             )
 
-            self.logger.log(f'Indexed {len(file_chunks)} chunks from {file} !')
-
             for chunk in file_chunks:
                 start_index: int = chunk.metadata['start_index']
-                end_index: int = start_index + len(chunk.page_content)
+                end_index: int = start_index + len(chunk.page_content) - 1
 
                 chunk.metadata.update({
                     'first_character_index': start_index,
@@ -153,12 +172,13 @@ class Indexer:
                 })
                 del chunk.metadata['start_index']
 
-                corpus_metadata[len(corpus)] = MinimalSource(
-                    file_path=file.as_posix(),
-                    first_character_index=start_index,
-                    last_character_index=end_index
-                )
+                corpus_metadata[len(corpus)] = {
+                    'file_path': file_path_str,
+                    'first_character_index': start_index,
+                    'last_character_index': end_index
+                }
                 corpus.append(chunk.page_content)
+            self.logger.log(f'Indexed {len(file_chunks)} chunks from {file} !')
 
         self.logger.log(
             f'Indexed {len(corpus)} chunks from {len(self.files_path)} files !'
@@ -173,12 +193,24 @@ class Indexer:
             f'Saving BM25 index to {self.config.processed_bm25_index_path}...'
         )
         retriever.save(self.config.processed_bm25_index_path)
+        JSONUtils.save_json(
+            corpus_metadata,
+            self.config.processed_chunks_metadata_path
+        )
+        self.logger.log(
+            'Saved BM25 index and metadata successfully !'
+        )
 
     def _create_config_files(self) -> None:
         folders: list[str] = [
             self.config.processed_bm25_index_path,
-            self.config.processed_chunks_path
+            self.config.processed_chunks_path,
+        ]
+        files: list[str] = [
+            self.config.processed_chunks_metadata_path
         ]
 
         for path in folders:
             Path(path).mkdir(parents=True, exist_ok=True)
+        for path in files:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)

@@ -1,5 +1,6 @@
+from .minimal_answer_model import MinimalSearchResults
+from .minimal_answer_model import MinimalAnswer
 from pydantic import BaseModel
-from . import MinimalSearchResults, MinimalAnswer
 
 
 class StudentSearchResults(BaseModel):
@@ -7,5 +8,6 @@ class StudentSearchResults(BaseModel):
     k: int
 
 
-class StudentSearchResultsAndAnswer(StudentSearchResults):
+class StudentSearchResultsAndAnswer(BaseModel):
+    k: int
     search_results: list[MinimalAnswer]

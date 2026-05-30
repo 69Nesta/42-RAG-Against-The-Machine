@@ -1,5 +1,5 @@
+from .minimal_source_model import MinimalSource
 from pydantic import BaseModel
-from . import MinimalSource
 
 
 class MinimalSearchResults(BaseModel):

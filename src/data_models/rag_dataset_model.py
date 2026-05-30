@@ -1,4 +1,4 @@
-from . import AnsweredQuestion, UnansweredQuestion
+from .questions_model import AnsweredQuestion, UnansweredQuestion
 from pydantic import BaseModel
 
 
