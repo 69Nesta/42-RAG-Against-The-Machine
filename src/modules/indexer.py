@@ -1,6 +1,8 @@
+from ..interfaces import ChromaDBInterface
 from ..utils import Logger, Color
 from ..enums import IndexType
 from ..utils import JSONUtils
+from ..config import Config
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
 from langchain_core.documents import Document
@@ -45,6 +47,9 @@ class IndexerConfig(BaseModel):
 
 class Indexer:
     logger: Logger
+    app_config: Config
+    chromadb_interface: ChromaDBInterface
+
     config: IndexerConfig
 
     ALLOWED_FILES: dict[IndexType, set[str]] = {
@@ -66,16 +71,20 @@ class Indexer:
                 processed_bm25_index_path: str,
                 processed_chunks_path: str,
                 processed_chunks_metadata_path: str,
-                verbose: bool,
+                chromadb_interface: ChromaDBInterface,
+                config: Config,
             ) -> None:
-        self.logger = Logger('Indexer', verbose, Color.CYAN)
+        self.app_config = config
+        self.chromadb_interface = chromadb_interface
+
+        self.logger = Logger('Indexer', Color.CYAN, config.verbose)
         self.logger.log('Initializing Indexer...')
 
         self.config = IndexerConfig(
             root_path=root_path,
             maximum_chunk_size=maximum_chunk_size,
             index_type=index_type,
-            verbose=verbose,
+            verbose=config.verbose,
             processed_bm25_index_path=Path(
                 str(processed_bm25_index_path)
             ).as_posix(),
@@ -138,6 +147,7 @@ class Indexer:
 
     def _index_files(self) -> None:
         self.logger.log('Indexing code files...')
+        ids: list[str] = []
         corpus: list[str] = []
         corpus_metadata: dict[int, dict[str, str | int]] = {}
 
@@ -165,6 +175,7 @@ class Indexer:
             for chunk in file_chunks:
                 start_index: int = chunk.metadata['start_index']
                 end_index: int = start_index + len(chunk.page_content) - 1
+                current_id: int = len(corpus)
 
                 chunk.metadata.update({
                     'first_character_index': start_index,
@@ -172,7 +183,8 @@ class Indexer:
                 })
                 del chunk.metadata['start_index']
 
-                corpus_metadata[len(corpus)] = {
+                ids.append(str(current_id))
+                corpus_metadata[current_id] = {
                     'file_path': file_path_str,
                     'first_character_index': start_index,
                     'last_character_index': end_index
@@ -200,6 +212,16 @@ class Indexer:
         self.logger.log(
             'Saved BM25 index and metadata successfully !'
         )
+        if self.app_config.use_chroma:
+            self.logger.log('Creating ChromaDB index...')
+            self.chromadb_interface.get_collection().add(
+                ids=ids,
+                documents=corpus,
+                metadatas=[val for val in corpus_metadata.values()]
+            )
+            self.logger.log(
+                f'Created ChromaDB collection at {self.config.processed_chunks_path} !'
+            )
 
     def _create_config_files(self) -> None:
         folders: list[str] = [

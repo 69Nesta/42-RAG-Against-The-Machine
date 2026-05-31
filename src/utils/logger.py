@@ -19,8 +19,8 @@ class Logger:
     def __init__(
                 self,
                 name: str = 'Logger',
-                verbose: bool = False,
                 color: Color = Color.GRAY,
+                verbose: bool = False,
             ) -> None:
         """Initialize a logger instance.
 

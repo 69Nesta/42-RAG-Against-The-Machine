@@ -1,3 +1,4 @@
+from .interfaces import ChromaDBInterface
 from .utils import Logger, Color
 from .enums import IndexType
 from .config import Config
@@ -7,13 +8,31 @@ from pydantic import ValidationError
 
 class RAG:
     logger: Logger
-    verbose: bool
+    config: Config
 
-    def __init__(self, verbose: bool = False) -> None:
-        self.logger = Logger('Main', verbose, Color.MAGENTA)
+    chromadb_interface: ChromaDBInterface
+
+    def __init__(
+                self,
+                verbose: bool = False,
+                model_name: str = 'openai/qwen3:0.6b',
+                use_chroma: bool = True,
+                processed_chromadb_path: str = 'data/processed/chunks/chromadb',
+                chromadb_collection_name: str = 'chunks',
+            ) -> None:
+        self.logger = Logger('Main', Color.MAGENTA, verbose)
         self.logger.log('Initializing RAG...')
-        self.config = Config()
-        self.verbose = verbose
+        self.config = Config(
+            verbose=verbose,
+            model_name=model_name,
+            use_chroma=use_chroma,
+            chromadb_path=processed_chromadb_path,
+            chromadb_collection_name=chromadb_collection_name,
+        )
+
+        self.chromadb_interface = ChromaDBInterface(
+            config=self.config,
+        )
 
     def index(
                 self,
@@ -23,7 +42,7 @@ class RAG:
                 processed_bm25_index_path: str = 'data/processed/bm25_index',
                 processed_chunks_path: str = 'data/processed/chunks',
                 processed_chunks_metadata_path: str =
-                'data/processed/chunks_metadata.json',
+                'data/processed/chunks/chunks_metadata.json',
             ) -> None:
         from .modules.indexer import Indexer
         self.logger.log('Starting Indexer...')
@@ -36,7 +55,8 @@ class RAG:
                 processed_bm25_index_path,
                 processed_chunks_path,
                 processed_chunks_metadata_path,
-                self.verbose,
+                self.chromadb_interface,
+                self.config,
             )
         except ValidationError as e:
             self.logger.pydantic_error(e, 'Error while validating parameters:')

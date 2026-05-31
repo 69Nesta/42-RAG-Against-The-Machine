@@ -16,7 +16,7 @@ dependencies = [
     "sentence-transformers>=5.5.1",
 ]
 
-[mypy]
+[tool.mypy]
 ignore_missing_imports = true
 
 [dependency-groups]
