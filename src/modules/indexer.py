@@ -52,10 +52,14 @@ class Indexer:
 
     config: IndexerConfig
 
-    ALLOWED_FILES: dict[IndexType, set[str]] = {
+    FILES_TYPES: dict[IndexType, set[str]] = {
         IndexType.CODE: {'.py'},
         IndexType.DOCS: {'.md', '.toml', '.txt'},
-        IndexType.ALL: {'.py', '.md', '.toml', '.txt'}
+    }
+
+    ALLOWED_FILES: dict[IndexType, set[str]] = {
+        IndexType.CODE: FILES_TYPES.get(IndexType.CODE, set()),
+        IndexType.DOCS: FILES_TYPES.get(IndexType.DOCS, set()),
     }
 
     files_path: list[Path]
@@ -109,7 +113,8 @@ class Indexer:
         )
 
         allowed_ext: set[str] = self.ALLOWED_FILES.get(
-            self.config.index_type, set()
+            self.config.index_type,
+            set().union(*self.ALLOWED_FILES.values())
         )
         for file in path.rglob('*'):
             if not file.is_file():
@@ -117,7 +122,7 @@ class Indexer:
             if file.suffix.lower() in allowed_ext:
                 self.files_path.append(file)
 
-        self.logger.log(
+        self.logger.info(
             f'Found {len(self.files_path)} files !'
         )
 
@@ -153,6 +158,14 @@ class Indexer:
 
         for file in self.files_path:
             self.logger.log(f'Indexing {file}...')
+            file_type: str
+            for key, value in self.ALLOWED_FILES.items():
+                if file.suffix in value:
+                    file_type = key.value
+                    break
+            else:
+                file_type = 'unknown'
+
             file_path_str: str = file.as_posix()
             content: str = ''
             try:
@@ -174,7 +187,7 @@ class Indexer:
 
             for chunk in file_chunks:
                 start_index: int = chunk.metadata['start_index']
-                end_index: int = start_index + len(chunk.page_content) - 1
+                end_index: int = start_index + len(chunk.page_content)
                 current_id: int = len(corpus)
 
                 chunk.metadata.update({
@@ -187,7 +200,9 @@ class Indexer:
                 corpus_metadata[current_id] = {
                     'file_path': file_path_str,
                     'first_character_index': start_index,
-                    'last_character_index': end_index
+                    'last_character_index': end_index,
+                    'extension': file.suffix,
+                    'type': file_type,
                 }
                 corpus.append(chunk.page_content)
             self.logger.log(f'Indexed {len(file_chunks)} chunks from {file} !')
@@ -220,7 +235,8 @@ class Indexer:
                 metadatas=[val for val in corpus_metadata.values()]
             )
             self.logger.log(
-                f'Created ChromaDB collection at {self.config.processed_chunks_path} !'
+                'Created ChromaDB collection at '
+                f'{self.config.processed_chunks_path} !'
             )
 
     def _create_config_files(self) -> None:
