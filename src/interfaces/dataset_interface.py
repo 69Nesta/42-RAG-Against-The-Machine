@@ -34,9 +34,9 @@ class DatasetInterface:
         if not path.exists() or not path.is_file():
             raise FileNotFoundError(f'File not found: {path.as_posix()}')
 
-        if path in self._cache:
+        if path.as_posix() in self._cache:
             return self._cache[path.as_posix()]
-        data: dict = JSONUtils.load_json(path.as_posix())
+        data = JSONUtils.load_json(path.as_posix())
         dataset = RagDataset(
             rag_questions=data.get('rag_questions', [])
         )

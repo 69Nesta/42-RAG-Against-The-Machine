@@ -157,13 +157,6 @@ class Indexer:
 
         for file in self.files_path:
             self.logger.log(f'Indexing {file}...')
-            file_type: str
-            for key, value in self.ALLOWED_FILES.items():
-                if file.suffix in value:
-                    file_type = key.value
-                    break
-            else:
-                file_type = 'unknown'
 
             file_path_str: str = file.as_posix()
             content: str = ''
@@ -200,8 +193,6 @@ class Indexer:
                     'file_path': file_path_str,
                     'first_character_index': start_index,
                     'last_character_index': end_index,
-                    # 'extension': file.suffix,
-                    # 'type': file_type,
                 }
                 corpus.append(chunk.page_content)
             self.logger.log(f'Indexed {len(file_chunks)} chunks from {file} !')

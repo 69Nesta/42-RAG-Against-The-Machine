@@ -1,5 +1,3 @@
-from .enums import IndexType
-
 from pydantic import BaseModel, model_validator
 from pathlib import Path
 
