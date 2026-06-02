@@ -1,5 +1,6 @@
-from .main import main
+from fire import Fire
+from .rag import RAG
 
 
 if __name__ == '__main__':
-    main()
+    Fire(RAG)
