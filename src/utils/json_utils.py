@@ -12,3 +12,13 @@ class JSONUtils:
             raise ValueError(
                 f'Error occurred while saving JSON to {file_path}: {e}'
             )
+
+    @staticmethod
+    def load_json(file_path: str) -> Any:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            raise ValueError(
+                f'Error occurred while loading JSON from {file_path}: {e}'
+            )

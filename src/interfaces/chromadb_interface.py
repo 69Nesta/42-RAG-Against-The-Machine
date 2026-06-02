@@ -1,7 +1,9 @@
 from ..utils import Logger, Color
 from ..config import Config
 
-from chromadb import PersistentClient, ClientAPI, Collection
+from chromadb import PersistentClient, Collection
+from chromadb.api import ClientAPI
+from typing import Any, Callable
 from pathlib import Path
 
 
@@ -35,7 +37,7 @@ class ChromaDBInterface:
             return
         Path(config.chromadb_path).mkdir(parents=True, exist_ok=True)
 
-        self.logger.info(
+        self.logger.log(
             'Initializing Chroma interface with collection '
             f'name: {self.collection_name}'
         )
@@ -55,3 +57,55 @@ class ChromaDBInterface:
         if not self.enabled:
             raise ValueError("Chroma interface is not enabled.")
         return self.client
+
+    def batch_add(
+                self,
+                collection: Collection,
+                ids: list[str],
+                documents: list[str],
+                metadatas: list[dict[str, Any]] | None = None,
+                embeddings: list[list[float]] | None = None,
+                batch_size: int = 5000,
+                progress_bar_func: Callable[[int, int], None] | None = None,
+            ) -> None:
+        total = len(ids)
+
+        for i in range(0, total, batch_size):
+            end = min(i + batch_size, total)
+
+            kwargs: dict[str, Any] = {
+                'ids': ids[i:end],
+                'documents': documents[i:end],
+            }
+
+            if embeddings is not None:
+                kwargs['embeddings'] = embeddings[i:end]
+
+            if metadatas is not None:
+                kwargs['metadatas'] = metadatas[i:end]
+
+            collection.add(**kwargs)
+
+            if progress_bar_func is not None:
+                progress_bar_func(end, total)
+
+    def search(self, query: str, k: int = 5) -> list[tuple[str, str, float]]:
+        if not self.enabled:
+            return []
+
+        results = self.get_collection().query(
+            query_texts=[query],
+            n_results=k,
+        )
+
+        ids = results.get('ids')
+        documents = results.get('documents')
+        distances = results.get('distances')
+        if not ids or not distances or not documents:
+            return []
+
+        return list(zip(
+            ids[0],
+            documents[0],
+            distances[0]
+        ))

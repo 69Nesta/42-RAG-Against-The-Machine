@@ -29,19 +29,18 @@ class IndexerConfig(BaseModel):
                 'be different!'
             )
 
-        check_dir: list[str] = [
-            self.processed_bm25_index_path,
-            self.processed_chunks_path
+        checks = [
+            (self.processed_bm25_index_path, True),
+            (self.processed_chunks_path, True),
+            (self.processed_chunks_metadata_path, False),
         ]
-        check_file: list[str] = [
-            self.processed_chunks_metadata_path
-        ]
-        for path in check_dir:
-            if not Path(path).is_dir():
-                raise ValueError(f'{path} must be a directory!')
-        for path in check_file:
-            if Path(path).is_dir():
-                raise ValueError(f'{path} must be a file!')
+
+        for path, should_be_dir in checks:
+            p = Path(path)
+            if p.exists() and p.is_dir() != should_be_dir:
+                kind = "directory" if should_be_dir else "file"
+                raise ValueError(f"{path} must be a {kind}!")
+
         return self
 
 
@@ -201,8 +200,8 @@ class Indexer:
                     'file_path': file_path_str,
                     'first_character_index': start_index,
                     'last_character_index': end_index,
-                    'extension': file.suffix,
-                    'type': file_type,
+                    # 'extension': file.suffix,
+                    # 'type': file_type,
                 }
                 corpus.append(chunk.page_content)
             self.logger.log(f'Indexed {len(file_chunks)} chunks from {file} !')
@@ -229,14 +228,21 @@ class Indexer:
         )
         if self.app_config.use_chroma:
             self.logger.log('Creating ChromaDB index...')
-            self.chromadb_interface.get_collection().add(
+
+            def progress_bar_func(current: int, total: int) -> None:
+                self.logger.log(
+                    f'Saving ChromaDB index... {current}/{total} chunks saved'
+                )
+
+            self.chromadb_interface.batch_add(
+                collection=self.chromadb_interface.get_collection(),
                 ids=ids,
                 documents=corpus,
-                metadatas=[val for val in corpus_metadata.values()]
+                metadatas=[val for val in corpus_metadata.values()],
+                progress_bar_func=progress_bar_func
             )
             self.logger.log(
-                'Created ChromaDB collection at '
-                f'{self.config.processed_chunks_path} !'
+                'Saved ChromaDB index successfully !'
             )
 
     def _create_config_files(self) -> None:
