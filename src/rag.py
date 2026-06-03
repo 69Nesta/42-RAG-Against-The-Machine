@@ -1,4 +1,4 @@
-from .interfaces import ChromaDBInterface, DatasetInterface, MetadataInterface
+from .interfaces import ChromaDBInterface, DatasetInterface, ChunksInterface
 from .models import UnansweredQuestion
 from .utils import Logger, Color
 from .enums import IndexType
@@ -13,29 +13,55 @@ class RAG:
 
     chromadb_interface: ChromaDBInterface
     dataset_interface: DatasetInterface
-    metadata_interface: MetadataInterface
+    chunks_interface: ChunksInterface
+    # metadata_interface: MetadataInterface
 
     def __init__(
-                self,
-                verbose: bool = False,
-                model_name: str = 'openai/qwen3:0.6b',
-                use_chroma: bool = True,
-                chromadb_collection_name: str = 'chunks',
-                processed_chromadb_path: str = 'data/processed/chunks/chromadb'
-            ) -> None:
+        self,
+        verbose: bool = False,
+        model_name: str = 'openai/qwen3:0.6b',
+        temperature: float = 0.1,
+        api_base: str = 'http://localhost:8000/v1',
+        api_key: str = 'tok-local',
+        max_tokens: int = 4096,
+        dspy_cache: bool = True,
+
+        use_chroma: bool = True,
+        chromadb_collection_name: str = 'chunks',
+        chromadb_path: str = 'data/processed/chunks/chromadb',
+
+        processed_bm25_index_path: str = 'data/processed/bm25_index',
+        processed_chunks_path: str = 'data/processed/chunks/contents.json',
+
+        bm25_weights_rrf: float = 1.15,
+        chroma_weights_rrf: float = .85,
+    ) -> None:
         self.logger = Logger('Main', Color.MAGENTA, verbose)
         self.logger.log('Initializing RAG...')
         self.config = Config(
             verbose=verbose,
+
             model_name=model_name,
+            temperature=temperature,
+            api_base=api_base,
+            api_key=api_key,
+            max_tokens=max_tokens,
+            dspy_cache=dspy_cache,
+
             use_chroma=use_chroma,
-            chromadb_path=processed_chromadb_path,
+            chromadb_path=chromadb_path,
             chromadb_collection_name=chromadb_collection_name,
+
+            processed_bm25_index_path=processed_bm25_index_path,
+            processed_chunks_path=processed_chunks_path,
+
+            bm25_weights_rrf=bm25_weights_rrf,
+            chroma_weights_rrf=chroma_weights_rrf,
         )
 
         self.chromadb_interface = ChromaDBInterface(config=self.config)
         self.dataset_interface = DatasetInterface(config=self.config)
-        self.metadata_interface = MetadataInterface(config=self.config)
+        self.chunks_interface = ChunksInterface(config=self.config)
 
     def index(
                 self,
@@ -70,7 +96,7 @@ class RAG:
                 self,
                 question: str,
                 k: int = 5,
-                save_directory: str = 'data/processed/output',
+                save_directory: str = 'data/output/search_results',
                 file_name: str = 'search_results.json'
             ) -> None:
         from .modules.search import Search
@@ -80,8 +106,8 @@ class RAG:
                 k,
                 save_directory,
                 self.chromadb_interface,
-                self.metadata_interface,
                 self.dataset_interface,
+                self.chunks_interface,
                 self.config
             ).search(
                 [UnansweredQuestion(question=question)],
@@ -97,7 +123,7 @@ class RAG:
                 dataset_path: str =
                 'data/datasets/UnansweredQuestions/dataset_docs_public.json',
                 k: int = 5,
-                save_directory: str = 'data/processed/output',
+                save_directory: str = 'data/output/search_results',
             ) -> None:
         from .modules.search import Search
 
@@ -106,8 +132,8 @@ class RAG:
                 k,
                 save_directory,
                 self.chromadb_interface,
-                self.metadata_interface,
                 self.dataset_interface,
+                self.chunks_interface,
                 self.config
             ).search_dataset(
                 dataset_path
@@ -117,7 +143,12 @@ class RAG:
         except Exception as e:
             self.logger.error(f'Error while searching: {e}')
 
-    def answer(self) -> None:
+    def answer(
+                self,
+                student_search_results_path: str =
+                'data/output/search_results/search_results.json',
+                save_directory: str = 'data/output/search_results_and_answer',
+            ) -> None:
         self.logger.warning('Not implemented')
 
     def answer_dataset(self) -> None:

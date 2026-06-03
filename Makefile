@@ -4,7 +4,7 @@ UV_PY = uv run
 MYPY_FLAGS = --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
 
 install:
-	uv sync
+	uv sync --cache-dir ~/goinfre/.uv_cache sync
 
 install-vllm:
 	@mkdir -p data/raw
@@ -32,5 +32,8 @@ lint:
 lint-strict:
 	$(UV_PY) flake8 $(SRCS_DIR)
 	$(UV_PY) mypy $(SRCS_DIR) --strict
+
+# install-vllm-goinfre:
+# 	
 
 .PHONY: install run debug clean fclean lint lint-strict

@@ -1,5 +1,9 @@
+from typing import TypeVar, Any
+from pydantic import BaseModel
 import json
-from typing import Any
+
+
+T = TypeVar('T', bound=BaseModel)
 
 
 class JSONUtils:
@@ -22,3 +26,14 @@ class JSONUtils:
             raise ValueError(
                 f'Error occurred while loading JSON from {file_path}: {e}'
             )
+
+    @staticmethod
+    def load_json_to_model(file: str, model_class: type[T]) -> T:
+        try:
+            with open(file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except Exception as e:
+            raise ValueError(
+                f'Error occurred while loading JSON to model from {file}: {e}'
+            )
+        return model_class.model_validate(data)

@@ -4,7 +4,7 @@ from ..models import (
     UnansweredQuestion,
     MinimalSource,
 )
-from ..interfaces import ChromaDBInterface, MetadataInterface, DatasetInterface
+from ..interfaces import ChromaDBInterface, ChunksInterface, DatasetInterface
 from ..utils import Logger, Color, JSONUtils
 from ..config import Config
 
@@ -39,8 +39,8 @@ class Search:
     logger: Logger
     app_config: Config
     chromadb_interface: ChromaDBInterface
-    metadata_interface: MetadataInterface
     dataset_interface: DatasetInterface
+    chunks_interface: ChunksInterface
 
     config: SearchConfig
     retriver: bm25s.BM25
@@ -50,14 +50,14 @@ class Search:
                 k: int,
                 save_directory: str,
                 chromadb_interface: ChromaDBInterface,
-                metadata_interface: MetadataInterface,
                 dataset_interface: DatasetInterface,
+                chunks_interface: ChunksInterface,
                 config: Config,
             ) -> None:
         self.app_config = config
         self.chromadb_interface = chromadb_interface
-        self.metadata_interface = metadata_interface
         self.dataset_interface = dataset_interface
+        self.chunks_interface = chunks_interface
 
         self.logger = Logger('Search', Color.CYAN, config.verbose)
         self.logger.log('Initializing Search...')
@@ -72,40 +72,46 @@ class Search:
             load_corpus=True
         )
 
+    def search_sources(
+                self,
+                question: UnansweredQuestion
+            ) -> list[MinimalSource]:
+        self.logger.log(f'Searching for question: {question.question!r}')
+        k_max: int = max(self.config.k * 10, 50)
+
+        fused_ids: list[str] = self._reciprocal_rank_fusion(
+            [
+                (
+                    self._get_bm25_results(question, self.config.k),
+                    self.app_config.bm25_weights_rrf
+                ),
+                (
+                    self._get_chromadb_results(question, k_max),
+                    self.app_config.chroma_weights_rrf
+                )
+            ],
+            self.config.k
+        )
+
+        documents: list[MinimalSource] = []
+        for doc_id in fused_ids:
+            metadata = self.chunks_interface.get_metadata(doc_id)
+            if metadata is not None:
+                documents.append(metadata)
+
+        return documents
+
     def search(self, questions: list[UnansweredQuestion], file: str) -> None:
         self.logger.log('Starting search...')
 
         minimal_search_results: list[MinimalSearchResults] = []
         for question in questions:
             self.logger.log(f"Searching for question: {question.question!r}")
-
-            fused_ids: list[str] = self._reciprocal_rank_fusion(
-                [
-                    (
-                        self._get_bm25_results(question, self.config.k),
-                        self.app_config.bm25_weights_rrf
-                    ),
-                    (
-                        self._get_chromadb_results(question, self.config.k),
-                        self.app_config.chroma_weights_rrf
-                    )
-                ],
-                self.config.k
-            )
-
-            documents: list[MinimalSource] = []
-            for doc_id in fused_ids:
-                metadata = self.metadata_interface.get_by_id(doc_id)
-                if metadata is not None:
-                    documents.append(metadata)
-
-            minimal_search_results.append(
-                MinimalSearchResults(
-                    question_id=question.question_id,
-                    question=question.question,
-                    retrieved_sources=documents
-                )
-            )
+            minimal_search_results.append(MinimalSearchResults(
+                question_id=question.question_id,
+                question=question.question,
+                retrieved_sources=self.search_sources(question)
+            ))
 
         self._save(
             StudentSearchResults(

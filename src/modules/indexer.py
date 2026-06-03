@@ -194,7 +194,8 @@ class Indexer:
                     'first_character_index': start_index,
                     'last_character_index': end_index,
                 }
-                corpus.append(chunk.page_content)
+                bms25_txt = f"{chunk.page_content} {file_path_str*10}"
+                corpus.append(bms25_txt)
             self.logger.log(f'Indexed {len(file_chunks)} chunks from {file} !')
 
         self.logger.log(

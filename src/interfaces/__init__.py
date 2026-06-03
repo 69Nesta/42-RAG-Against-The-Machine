@@ -1,10 +1,13 @@
 from .chromadb_interface import ChromaDBInterface
 from .dataset_interface import DatasetInterface
-from .metadata_interface import MetadataInterface
-
+from .chunks_interface import ChunksInterface
+from .bm25s_interface import Bm25sInterface
+from .dspy_interface import DspyInterface
 
 __all__: list[str] = [
     'ChromaDBInterface',
-    'MetadataInterface',
     'DatasetInterface',
+    'ChunksInterface',
+    'Bm25sInterface',
+    'DspyInterface',
 ]

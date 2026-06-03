@@ -3,21 +3,24 @@ from pathlib import Path
 
 
 class Config(BaseModel):
-    verbose: bool = False
+    verbose: bool
 
-    model_name: str = 'openai/qwen3:0.6b'
-    use_chroma: bool = False
+    model_name: str
+    temperature: float
+    api_base: str
+    api_key: str
+    max_tokens: int
+    dspy_cache: bool
 
-    chromadb_path: str = 'data/processed/chroma'
-    chromadb_collection_name: str = 'chunks'
+    use_chroma: bool
+    chromadb_path: str
+    chromadb_collection_name: str
 
-    processed_bm25_index_path: str = 'data/processed/bm25_index'
-    processed_chunks_path: str = 'data/processed/chunks'
-    processed_chunks_metadata_path: str = \
-        'data/processed/chunks/chunks_metadata.json'
+    processed_bm25_index_path: str
+    processed_chunks_path: str
 
-    bm25_weights_rrf: float = 1.15
-    chroma_weights_rrf: float = .85
+    bm25_weights_rrf: float
+    chroma_weights_rrf: float
 
     @model_validator(mode='after')
     def check_paths_differ(self) -> 'Config':
@@ -30,7 +33,7 @@ class Config(BaseModel):
         checks = [
             (self.processed_bm25_index_path, True),
             (self.processed_chunks_path, True),
-            (self.processed_chunks_metadata_path, False),
+            # (self.processed_chroma_path, False),
         ]
 
         for path, should_be_dir in checks:
