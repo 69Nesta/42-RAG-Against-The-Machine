@@ -3,6 +3,7 @@ from .student_search_model import (
 )
 from .minimal_answer_model import MinimalAnswer, MinimalSearchResults
 from .questions_model import UnansweredQuestion, AnsweredQuestion
+from .chunk_content_model import ChunkContentModel
 from .minimal_source_model import MinimalSource
 from .rag_dataset_model import RagDataset
 
@@ -12,6 +13,7 @@ __all__: list[str] = [
     'StudentSearchResults',
     'MinimalSearchResults',
     'UnansweredQuestion',
+    'ChunkContentModel',
     'AnsweredQuestion',
     'MinimalSource',
     'MinimalAnswer',

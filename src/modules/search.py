@@ -4,17 +4,18 @@ from ..models import (
     UnansweredQuestion,
     MinimalSource,
 )
-from ..interfaces import ChromaDBInterface, MetadataInterface, DatasetInterface
+from ..interfaces import ChromaDBInterface, ChunksInterface, DatasetInterface
 from ..utils import Logger, Color, JSONUtils
 from ..config import Config
 
 from pydantic import BaseModel, Field, model_validator
+from tqdm import tqdm
 from pathlib import Path
 import bm25s
 
 
 class SearchConfig(BaseModel):
-    k: int = Field(..., gt=0, le=100)
+    k: int = Field(..., gt=0, le=10)
     save_directory: str = Field(..., min_length=1)
 
     @model_validator(mode='after')
@@ -26,8 +27,8 @@ class SearchConfig(BaseModel):
         for path, should_be_dir in checks:
             p = Path(path)
             if p.exists() and p.is_dir() != should_be_dir:
-                kind = "directory" if should_be_dir else "file"
-                raise ValueError(f"{path} must be a {kind}!")
+                kind = 'directory' if should_be_dir else 'file'
+                raise ValueError(f'{path} must be a {kind}!')
 
         return self
 
@@ -35,12 +36,12 @@ class SearchConfig(BaseModel):
 t_retrive_document = tuple[str, str, float]
 
 
-class Search:
+class SearchModule:
     logger: Logger
     app_config: Config
     chromadb_interface: ChromaDBInterface
-    metadata_interface: MetadataInterface
     dataset_interface: DatasetInterface
+    chunks_interface: ChunksInterface
 
     config: SearchConfig
     retriver: bm25s.BM25
@@ -50,17 +51,17 @@ class Search:
                 k: int,
                 save_directory: str,
                 chromadb_interface: ChromaDBInterface,
-                metadata_interface: MetadataInterface,
                 dataset_interface: DatasetInterface,
+                chunks_interface: ChunksInterface,
                 config: Config,
             ) -> None:
         self.app_config = config
         self.chromadb_interface = chromadb_interface
-        self.metadata_interface = metadata_interface
         self.dataset_interface = dataset_interface
+        self.chunks_interface = chunks_interface
 
-        self.logger = Logger('Search', Color.CYAN, config.verbose)
-        self.logger.log('Initializing Search...')
+        self.logger = Logger('SearchModule', Color.CYAN, config.verbose)
+        self.logger.log('Initializing Search Module...')
 
         self.config = SearchConfig(
             save_directory=Path(save_directory).as_posix(),
@@ -72,44 +73,64 @@ class Search:
             load_corpus=True
         )
 
-    def search(self, questions: list[UnansweredQuestion], file: str) -> None:
+    def search_sources(
+                self,
+                question: UnansweredQuestion
+            ) -> list[MinimalSource]:
+        self.logger.log_tqdm(
+                f'Searching for question: {question.question!r}'
+        )
+        k_max: int = max(self.config.k * 10, 50)
+
+        fused_ids: list[str] = self._reciprocal_rank_fusion(
+            [
+                (
+                    self._get_bm25_results(question, self.config.k),
+                    self.app_config.bm25_weights_rrf
+                ),
+                (
+                    self._get_chromadb_results(question, k_max),
+                    self.app_config.chroma_weights_rrf
+                )
+            ],
+            self.config.k
+        )
+
+        documents: list[MinimalSource] = []
+        for doc_id in fused_ids:
+            metadata = self.chunks_interface.get_metadata_by_id(doc_id)
+            if metadata is not None:
+                documents.append(metadata)
+
+        return documents
+
+    def search(self, question: UnansweredQuestion, file: str) -> None:
         self.logger.log('Starting search...')
 
-        minimal_search_results: list[MinimalSearchResults] = []
-        for question in questions:
-            self.logger.log(f"Searching for question: {question.question!r}")
+        minimal_search_results: MinimalSearchResults = MinimalSearchResults(
+            question_id=question.question_id,
+            question=question.question,
+            retrieved_sources=self.search_sources(question)
+        )
 
-            fused_ids: list[str] = self._reciprocal_rank_fusion(
-                [
-                    (
-                        self._get_bm25_results(question, self.config.k),
-                        self.app_config.bm25_weights_rrf
-                    ),
-                    (
-                        self._get_chromadb_results(question, self.config.k),
-                        self.app_config.chroma_weights_rrf
-                    )
-                ],
-                self.config.k
+        self.logger.info(f'{Color.BOLD}Retrieved Sources:{Color.RESET}')
+
+        for idx, source in enumerate(
+            minimal_search_results.retrieved_sources,
+            start=1
+        ):
+            self.logger.info(
+                f' [{Color.YELLOW}{idx}{Color.RESET}] File: {source.file_path}'
             )
-
-            documents: list[MinimalSource] = []
-            for doc_id in fused_ids:
-                metadata = self.metadata_interface.get_by_id(doc_id)
-                if metadata is not None:
-                    documents.append(metadata)
-
-            minimal_search_results.append(
-                MinimalSearchResults(
-                    question_id=question.question_id,
-                    question=question.question,
-                    retrieved_sources=documents
-                )
+            self.logger.info(
+                f'     {Color.WHITE}Character Range: '
+                f'{source.first_character_index} - '
+                f'{source.last_character_index}{Color.RESET}'
             )
 
         self._save(
             StudentSearchResults(
-                search_results=minimal_search_results,
+                search_results=[minimal_search_results],
                 k=self.config.k
             ),
             file
@@ -118,13 +139,31 @@ class Search:
     def search_dataset(self, dataset_path: str) -> None:
         path: Path = Path(dataset_path)
         if not path.exists() or not path.is_file():
-            self.logger.error(f"Dataset file {dataset_path!r} does not exist!")
+            self.logger.error(f'Dataset file {dataset_path!r} does not exist!')
             return
 
         dataset = self.dataset_interface.load_dataset(dataset_path)
-        self.search(
-            questions=dataset.rag_questions,
-            file=path.name
+
+        minimal_search_results: list[MinimalSearchResults] = []
+        for question in tqdm(
+            dataset.rag_questions,
+            desc='Searching questions',
+            unit='question'
+        ):
+            minimal_search_results.append(
+                MinimalSearchResults(
+                    question_id=question.question_id,
+                    question=question.question,
+                    retrieved_sources=self.search_sources(question)
+                )
+            )
+
+        self._save(
+            StudentSearchResults(
+                search_results=minimal_search_results,
+                k=self.config.k
+            ),
+            path.name
         )
 
     def _get_bm25_results(
@@ -179,11 +218,12 @@ class Search:
         save_path: Path = Path(self.config.save_directory) / file
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
-        self.logger.info(
+        self.logger.log(
             f'Saving search results to {save_path.as_posix()!r}...'
         )
 
-        JSONUtils.save_json(
-            search_results.model_dump(),
-            save_path.as_posix()
+        JSONUtils.save_json(search_results.model_dump(), save_path.as_posix())
+
+        self.logger.info(
+            f'Saved search results to {save_path.as_posix()!r} successfully !'
         )

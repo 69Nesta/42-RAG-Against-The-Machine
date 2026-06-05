@@ -1,12 +1,13 @@
-from ..interfaces import ChromaDBInterface
+from ..interfaces import ChromaDBInterface, ChunksInterface
+from ..models import ChunkContentModel, MinimalSource
 from ..utils import Logger, Color
 from ..enums import IndexType
-from ..utils import JSONUtils
 from ..config import Config
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
+from tqdm import tqdm
 from langchain_core.documents import Document
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 from pathlib import Path
 import bm25s
 
@@ -15,39 +16,13 @@ class IndexerConfig(BaseModel):
     root_path: str
     maximum_chunk_size: int = Field(..., gt=0, le=2000)
     index_type: IndexType
-    verbose: bool
-
-    processed_bm25_index_path: str = Field(..., min_length=1)
-    processed_chunks_path: str = Field(..., min_length=1)
-    processed_chunks_metadata_path: str = Field(..., min_length=1)
-
-    @model_validator(mode='after')
-    def check_paths_differ(self) -> 'IndexerConfig':
-        if self.processed_bm25_index_path == self.processed_chunks_path:
-            raise ValueError(
-                'processed_bm25_index_path and processed_chunks_path must '
-                'be different!'
-            )
-
-        checks = [
-            (self.processed_bm25_index_path, True),
-            (self.processed_chunks_path, True),
-            (self.processed_chunks_metadata_path, False),
-        ]
-
-        for path, should_be_dir in checks:
-            p = Path(path)
-            if p.exists() and p.is_dir() != should_be_dir:
-                kind = "directory" if should_be_dir else "file"
-                raise ValueError(f"{path} must be a {kind}!")
-
-        return self
 
 
-class Indexer:
+class IndexerModule:
     logger: Logger
     app_config: Config
     chromadb_interface: ChromaDBInterface
+    chunks_interface: ChunksInterface
 
     config: IndexerConfig
 
@@ -71,32 +46,21 @@ class Indexer:
                 root_path: str,
                 maximum_chunk_size: int,
                 index_type: IndexType,
-                processed_bm25_index_path: str,
-                processed_chunks_path: str,
-                processed_chunks_metadata_path: str,
                 chromadb_interface: ChromaDBInterface,
+                chunks_interface: ChunksInterface,
                 config: Config,
             ) -> None:
         self.app_config = config
         self.chromadb_interface = chromadb_interface
+        self.chunks_interface = chunks_interface
 
-        self.logger = Logger('Indexer', Color.CYAN, config.verbose)
-        self.logger.log('Initializing Indexer...')
+        self.logger = Logger('IndexerModule', Color.CYAN, config.verbose)
+        self.logger.log('Initializing Indexer Module...')
 
         self.config = IndexerConfig(
             root_path=root_path,
             maximum_chunk_size=maximum_chunk_size,
             index_type=index_type,
-            verbose=config.verbose,
-            processed_bm25_index_path=Path(
-                str(processed_bm25_index_path)
-            ).as_posix(),
-            processed_chunks_path=Path(
-                str(processed_chunks_path)
-            ).as_posix(),
-            processed_chunks_metadata_path=Path(
-                str(processed_chunks_metadata_path)
-            ).as_posix()
         )
 
         self._explore()
@@ -154,9 +118,14 @@ class Indexer:
         ids: list[str] = []
         corpus: list[str] = []
         corpus_metadata: dict[int, dict[str, str | int]] = {}
+        chunks: dict[str, ChunkContentModel] = {}
 
-        for file in self.files_path:
-            self.logger.log(f'Indexing {file}...')
+        for file in tqdm(
+            self.files_path,
+            desc='Processing files',
+            unit='file',
+            disable=not self.app_config.verbose
+        ):
 
             file_path_str: str = file.as_posix()
             content: str = ''
@@ -177,10 +146,21 @@ class Indexer:
                 }]
             )
 
-            for chunk in file_chunks:
+            for chunk in tqdm(
+                file_chunks,
+                desc=f'Chunks from {file.name}',
+                unit='chunk',
+                leave=False,
+                disable=not self.app_config.verbose
+            ):
                 start_index: int = chunk.metadata['start_index']
                 end_index: int = start_index + len(chunk.page_content)
                 current_id: int = len(corpus)
+                corpus_metadata[current_id] = {
+                    'file_path': file_path_str,
+                    'first_character_index': start_index,
+                    'last_character_index': end_index,
+                }
 
                 chunk.metadata.update({
                     'first_character_index': start_index,
@@ -189,41 +169,58 @@ class Indexer:
                 del chunk.metadata['start_index']
 
                 ids.append(str(current_id))
-                corpus_metadata[current_id] = {
-                    'file_path': file_path_str,
-                    'first_character_index': start_index,
-                    'last_character_index': end_index,
-                }
-                corpus.append(chunk.page_content)
-            self.logger.log(f'Indexed {len(file_chunks)} chunks from {file} !')
+
+                chunks.update({
+                    str(current_id): ChunkContentModel(
+                        id=str(current_id),
+                        content=chunk.page_content,
+                        metadata=MinimalSource(**chunk.metadata)
+                    )
+                })
+
+                bms25_txt = f'{chunk.page_content} {file_path_str*10}'
+                corpus.append(bms25_txt)
+            self.logger.log_tqdm(
+                f'Indexed {len(file_chunks):3} chunks from {file!r} !'
+            )
 
         self.logger.log(
             f'Indexed {len(corpus)} chunks from {len(self.files_path)} files !'
         )
 
         self.logger.log('Creating BM25 index...')
-        corpus_tokens = bm25s.tokenize(corpus)
+        corpus_tokens = bm25s.tokenize(
+            list(tqdm(
+                corpus,
+                desc='Tokenizing corpus',
+                unit='doc',
+                disable=not self.app_config.verbose
+            ))
+        )
         retriever = bm25s.BM25(corpus=corpus)
         retriever.index(corpus_tokens)
 
         self.logger.log(
-            f'Saving BM25 index to {self.config.processed_bm25_index_path}...'
+            f'Saving BM25 index to {self.app_config.processed_bm25_index_path}'
+            '...'
         )
-        retriever.save(self.config.processed_bm25_index_path)
-        JSONUtils.save_json(
-            corpus_metadata,
-            self.config.processed_chunks_metadata_path
-        )
-        self.logger.log(
+        retriever.save(self.app_config.processed_bm25_index_path)
+
+        self.chunks_interface.save_chunks(chunks)
+        self.logger.info(
             'Saved BM25 index and metadata successfully !'
         )
         if self.app_config.use_chroma:
             self.logger.log('Creating ChromaDB index...')
 
+            pbar = tqdm(
+                total=len(ids),
+                desc='Saving to ChromaDB',
+                unit='chunk',
+            )
+
             def progress_bar_func(current: int, total: int) -> None:
-                self.logger.log(
-                    f'Saving ChromaDB index... {current}/{total} chunks saved'
-                )
+                pbar.update(current - pbar.n)
 
             self.chromadb_interface.batch_add(
                 collection=self.chromadb_interface.get_collection(),
@@ -232,17 +229,17 @@ class Indexer:
                 metadatas=[val for val in corpus_metadata.values()],
                 progress_bar_func=progress_bar_func
             )
-            self.logger.log(
+            pbar.close()
+            self.logger.info(
                 'Saved ChromaDB index successfully !'
             )
 
     def _create_config_files(self) -> None:
         folders: list[str] = [
-            self.config.processed_bm25_index_path,
-            self.config.processed_chunks_path,
+            self.app_config.processed_bm25_index_path,
         ]
         files: list[str] = [
-            self.config.processed_chunks_metadata_path
+            self.app_config.processed_chunks_path
         ]
 
         for path in folders:

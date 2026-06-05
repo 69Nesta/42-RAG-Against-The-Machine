@@ -50,12 +50,12 @@ class ChromaDBInterface:
 
     def get_collection(self) -> Collection:
         if not self.enabled:
-            raise ValueError("Chroma interface is not enabled.")
+            raise ValueError('Chroma interface is not enabled.')
         return self.collection
 
     def get_client(self) -> ClientAPI:
         if not self.enabled:
-            raise ValueError("Chroma interface is not enabled.")
+            raise ValueError('Chroma interface is not enabled.')
         return self.client
 
     def batch_add(
@@ -65,7 +65,7 @@ class ChromaDBInterface:
                 documents: list[str],
                 metadatas: list[dict[str, Any]] | None = None,
                 embeddings: list[list[float]] | None = None,
-                batch_size: int = 5000,
+                batch_size: int = 128,
                 progress_bar_func: Callable[[int, int], None] | None = None,
             ) -> None:
         total = len(ids)

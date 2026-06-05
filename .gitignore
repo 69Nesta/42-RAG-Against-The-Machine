@@ -1,6 +1,8 @@
 # Project files
+data/output/
 data/processed/
 data/raw/
+moulinette_pkg/
 
 # Virtual environment
 .venv
