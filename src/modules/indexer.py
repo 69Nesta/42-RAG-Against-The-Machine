@@ -181,7 +181,7 @@ class IndexerModule:
                 bms25_txt = f'{chunk.page_content} {file_path_str*10}'
                 corpus.append(bms25_txt)
             self.logger.log_tqdm(
-                f'Indexed {len(file_chunks):3} chunks from {file!r} !'
+                f'Indexed {len(file_chunks):3} chunks from {file_path_str!r} !'
             )
 
         self.logger.log(
