@@ -78,7 +78,7 @@ class AnswerModule:
                 question: UnansweredQuestion,
                 sources: list[MinimalSource]
             ) -> AnsweredQuestion:
-        self.logger.log(f'Answering question: {question.question!r}...')
+        self.logger.log_tqdm(f'Answering question: {question.question!r}...')
 
         documents: list[str] = [
             self.chunks_interface.get_chunk_by_metadata(source).content
@@ -162,7 +162,7 @@ class AnswerModule:
                 question=question,
                 sources=search_result.retrieved_sources
             )
-            self.logger.log(f'Answer: {answer.answer!r}')
+            self.logger.log_tqdm(f'Answer: {answer.answer!r}')
             answers.search_results.append(
                 MinimalAnswer(
                     question_id=search_result.question_id,

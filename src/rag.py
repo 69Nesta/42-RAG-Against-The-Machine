@@ -161,7 +161,7 @@ class RAG:
     def answer_dataset(
                 self,
                 student_search_results_path: str =
-                'data/output/search_results/dataset_code_public.json',
+                'data/output/search_results/dataset_docs_public.json',
                 save_directory: str = 'data/output/search_results_and_answer',
             ) -> None:
         from .modules.answer import AnswerModule
