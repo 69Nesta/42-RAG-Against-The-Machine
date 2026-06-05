@@ -18,7 +18,7 @@ class IndexerConfig(BaseModel):
     index_type: IndexType
 
 
-class Indexer:
+class IndexerModule:
     logger: Logger
     app_config: Config
     chromadb_interface: ChromaDBInterface
@@ -54,7 +54,7 @@ class Indexer:
         self.chromadb_interface = chromadb_interface
         self.chunks_interface = chunks_interface
 
-        self.logger = Logger('Indexer', Color.CYAN, config.verbose)
+        self.logger = Logger('IndexerModule', Color.CYAN, config.verbose)
         self.logger.log('Initializing Indexer Module...')
 
         self.config = IndexerConfig(
@@ -180,10 +180,9 @@ class Indexer:
 
                 bms25_txt = f'{chunk.page_content} {file_path_str*10}'
                 corpus.append(bms25_txt)
-            if self.app_config.verbose:
-                tqdm.write(self.logger.log_format(
-                    f'Indexed {len(file_chunks):3} chunks from {file!r} !'
-                ))
+            self.logger.log_tqdm(
+                f'Indexed {len(file_chunks):3} chunks from {file!r} !'
+            )
 
         self.logger.log(
             f'Indexed {len(corpus)} chunks from {len(self.files_path)} files !'

@@ -1,6 +1,7 @@
 from .color import Color
 
 from pydantic import ValidationError
+from tqdm import tqdm
 import datetime
 
 
@@ -54,6 +55,16 @@ class Logger:
         '''
         if (self.verbose):
             print(self.log_format(message), end=end)
+
+    def log_tqdm(self, message: str) -> None:
+        '''Print a message using tqdm.write, ensuring it doesn't interfere with
+        progress bars.
+
+        Args:
+            message (str): Message to print.
+        '''
+        if self.verbose:
+            tqdm.write(self.log_format(message))
 
     def error(self, message: str, end: str | None = '\n') -> None:
         '''Print an error message (always shown).

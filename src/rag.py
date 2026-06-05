@@ -69,10 +69,10 @@ class RAG:
                 maximum_chunk_size: int = 2000,
                 index_type: IndexType = IndexType.ALL
             ) -> None:
-        from .modules.indexer import Indexer
+        from .modules.indexer import IndexerModule
 
         try:
-            Indexer(
+            IndexerModule(
                 lib_path,
                 maximum_chunk_size,
                 index_type,
@@ -92,10 +92,10 @@ class RAG:
                 save_directory: str = 'data/output/search_results',
                 file_name: str = 'search_results.json'
             ) -> None:
-        from .modules.search import Search
+        from .modules.search import SearchModule
 
         try:
-            Search(
+            SearchModule(
                 k,
                 save_directory,
                 self.chromadb_interface,
@@ -103,7 +103,7 @@ class RAG:
                 self.chunks_interface,
                 self.config
             ).search(
-                [UnansweredQuestion(question=question)],
+                UnansweredQuestion(question=question),
                 file_name
             )
         except ValidationError as e:
@@ -118,10 +118,10 @@ class RAG:
                 k: int = 5,
                 save_directory: str = 'data/output/search_results',
             ) -> None:
-        from .modules.search import Search
+        from .modules.search import SearchModule
 
         try:
-            Search(
+            SearchModule(
                 k,
                 save_directory,
                 self.chromadb_interface,
@@ -142,10 +142,10 @@ class RAG:
                 k: int = 5,
                 save_directory: str = 'data/output/search_results_and_answer',
             ) -> None:
-        from .modules.answer import Answer
+        from .modules.answer import AnswerModule
 
         try:
-            Answer(
+            AnswerModule(
                 save_directory,
                 self.chromadb_interface,
                 self.dataset_interface,
@@ -164,10 +164,10 @@ class RAG:
                 'data/output/search_results/dataset_code_public.json',
                 save_directory: str = 'data/output/search_results_and_answer',
             ) -> None:
-        from .modules.answer import Answer
+        from .modules.answer import AnswerModule
 
         try:
-            Answer(
+            AnswerModule(
                 save_directory,
                 self.chromadb_interface,
                 self.dataset_interface,
@@ -186,10 +186,10 @@ class RAG:
                 dataset_path: str =
                 'data/datasets/AnsweredQuestions/dataset_docs_public.json',
             ) -> None:
-        from .modules.evaluate import Evaluate
+        from .modules.evaluate import EvaluateModule
 
         try:
-            Evaluate(
+            EvaluateModule(
                 student_answer_path,
                 dataset_path,
                 self.dataset_interface,

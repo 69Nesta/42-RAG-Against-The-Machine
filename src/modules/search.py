@@ -9,12 +9,13 @@ from ..utils import Logger, Color, JSONUtils
 from ..config import Config
 
 from pydantic import BaseModel, Field, model_validator
+from tqdm import tqdm
 from pathlib import Path
 import bm25s
 
 
 class SearchConfig(BaseModel):
-    k: int = Field(..., gt=0, le=100)
+    k: int = Field(..., gt=0, le=10)
     save_directory: str = Field(..., min_length=1)
 
     @model_validator(mode='after')
@@ -35,7 +36,7 @@ class SearchConfig(BaseModel):
 t_retrive_document = tuple[str, str, float]
 
 
-class Search:
+class SearchModule:
     logger: Logger
     app_config: Config
     chromadb_interface: ChromaDBInterface
@@ -59,7 +60,7 @@ class Search:
         self.dataset_interface = dataset_interface
         self.chunks_interface = chunks_interface
 
-        self.logger = Logger('Search', Color.CYAN, config.verbose)
+        self.logger = Logger('SearchModule', Color.CYAN, config.verbose)
         self.logger.log('Initializing Search Module...')
 
         self.config = SearchConfig(
@@ -76,7 +77,9 @@ class Search:
                 self,
                 question: UnansweredQuestion
             ) -> list[MinimalSource]:
-        self.logger.log(f'Searching for question: {question.question!r}')
+        self.logger.log_tqdm(
+                f'Searching for question: {question.question!r}'
+        )
         k_max: int = max(self.config.k * 10, 50)
 
         fused_ids: list[str] = self._reciprocal_rank_fusion(
@@ -101,20 +104,33 @@ class Search:
 
         return documents
 
-    def search(self, questions: list[UnansweredQuestion], file: str) -> None:
+    def search(self, question: UnansweredQuestion, file: str) -> None:
         self.logger.log('Starting search...')
 
-        minimal_search_results: list[MinimalSearchResults] = []
-        for question in questions:
-            minimal_search_results.append(MinimalSearchResults(
-                question_id=question.question_id,
-                question=question.question,
-                retrieved_sources=self.search_sources(question)
-            ))
+        minimal_search_results: MinimalSearchResults = MinimalSearchResults(
+            question_id=question.question_id,
+            question=question.question,
+            retrieved_sources=self.search_sources(question)
+        )
+
+        self.logger.info(f'{Color.BOLD}Retrieved Sources:{Color.RESET}')
+
+        for idx, source in enumerate(
+            minimal_search_results.retrieved_sources,
+            start=1
+        ):
+            self.logger.info(
+                f' [{Color.YELLOW}{idx}{Color.RESET}] File: {source.file_path}'
+            )
+            self.logger.info(
+                f'     {Color.WHITE}Character Range: '
+                f'{source.first_character_index} - '
+                f'{source.last_character_index}{Color.RESET}'
+            )
 
         self._save(
             StudentSearchResults(
-                search_results=minimal_search_results,
+                search_results=[minimal_search_results],
                 k=self.config.k
             ),
             file
@@ -127,9 +143,27 @@ class Search:
             return
 
         dataset = self.dataset_interface.load_dataset(dataset_path)
-        self.search(
-            questions=dataset.rag_questions,
-            file=path.name
+
+        minimal_search_results: list[MinimalSearchResults] = []
+        for question in tqdm(
+            dataset.rag_questions,
+            desc='Searching questions',
+            unit='question'
+        ):
+            minimal_search_results.append(
+                MinimalSearchResults(
+                    question_id=question.question_id,
+                    question=question.question,
+                    retrieved_sources=self.search_sources(question)
+                )
+            )
+
+        self._save(
+            StudentSearchResults(
+                search_results=minimal_search_results,
+                k=self.config.k
+            ),
+            path.name
         )
 
     def _get_bm25_results(
@@ -184,11 +218,12 @@ class Search:
         save_path: Path = Path(self.config.save_directory) / file
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
-        self.logger.info(
+        self.logger.log(
             f'Saving search results to {save_path.as_posix()!r}...'
         )
 
-        JSONUtils.save_json(
-            search_results.model_dump(),
-            save_path.as_posix()
+        JSONUtils.save_json(search_results.model_dump(), save_path.as_posix())
+
+        self.logger.info(
+            f'Saved search results to {save_path.as_posix()!r} successfully !'
         )

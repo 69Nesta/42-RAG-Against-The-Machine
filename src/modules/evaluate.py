@@ -35,7 +35,7 @@ class EvaluateConfig(BaseModel):
         return self
 
 
-class Evaluate:
+class EvaluateModule:
     logger: Logger
     app_config: Config
 
@@ -57,7 +57,7 @@ class Evaluate:
         self.dataset_interface = dataset_interface
         self.chunks_interface = chunks_interface
 
-        self.logger = Logger('Evaluate', Color.BLUE, config.verbose)
+        self.logger = Logger('EvaluateModule', Color.BLUE, config.verbose)
         self.logger.log('Initializing Evaluate Module...')
 
         self.config = EvaluateConfig(

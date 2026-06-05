@@ -16,6 +16,7 @@ from ..utils import Logger, Color, JSONUtils
 from ..config import Config
 
 from pydantic import BaseModel, Field, model_validator
+from tqdm import tqdm
 from pathlib import Path
 
 
@@ -37,7 +38,7 @@ class AnswerConfig(BaseModel):
         return self
 
 
-class Answer:
+class AnswerModule:
     logger: Logger
     app_config: Config
 
@@ -63,7 +64,7 @@ class Answer:
         self.dataset_interface = dataset_interface
         self.chunks_interface = chunks_interface
 
-        self.logger = Logger('Anwer', Color.CYAN, config.verbose)
+        self.logger = Logger('AnwerModule', Color.CYAN, config.verbose)
         self.logger.log('Initializing Answer Module...')
 
         self.config = AnswerConfig(
@@ -99,13 +100,13 @@ class Answer:
         return answer
 
     def answer(self, question_str: str, k: int = 5) -> None:
-        from ..modules.search import Search
+        from ..modules.search import SearchModule
 
         question: UnansweredQuestion = UnansweredQuestion(
             question=question_str,
         )
 
-        search_module: Search = Search(
+        search_module: SearchModule = SearchModule(
             k,
             save_directory=self.config.save_directory,
             chromadb_interface=self.chromadb_interface,
@@ -147,7 +148,11 @@ class Answer:
         )
 
         self.logger.info('Answering questions...')
-        for search_result in loaded_results.search_results:
+        for search_result in tqdm(
+            loaded_results.search_results,
+            desc='Answering questions',
+            unit='question',
+        ):
             question = UnansweredQuestion(
                 question_id=search_result.question_id,
                 question=search_result.question,

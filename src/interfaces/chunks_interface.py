@@ -37,7 +37,7 @@ class ChunksInterface:
         if self._loaded:
             return
 
-        self.logger.log(
+        self.logger.log_tqdm(
             f'Loading chunks from {self.app_config.processed_chunks_path}'
         )
         chunks_dict = JSONUtils.load_json(
