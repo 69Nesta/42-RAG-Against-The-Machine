@@ -32,14 +32,13 @@ class Config(BaseModel):
 
         checks = [
             (self.processed_bm25_index_path, True),
-            (self.processed_chunks_path, True),
-            # (self.processed_chroma_path, False),
+            (self.processed_chunks_path, False),
         ]
 
         for path, should_be_dir in checks:
             p = Path(path)
             if p.exists() and p.is_dir() != should_be_dir:
-                kind = "directory" if should_be_dir else "file"
-                raise ValueError(f"{path} must be a {kind}!")
+                kind = 'directory' if should_be_dir else 'file'
+                raise ValueError(f'{path} must be a {kind}!')
 
         return self

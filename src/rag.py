@@ -14,16 +14,16 @@ class RAG:
     chromadb_interface: ChromaDBInterface
     dataset_interface: DatasetInterface
     chunks_interface: ChunksInterface
-    # metadata_interface: MetadataInterface
 
     def __init__(
         self,
         verbose: bool = False,
         model_name: str = 'openai/qwen3:0.6b',
+        # model_name: str = 'openai/Qwen/Qwen3-0.6B',
         temperature: float = 0.1,
-        api_base: str = 'http://localhost:8000/v1',
-        api_key: str = 'tok-local',
-        max_tokens: int = 4096,
+        api_base: str = 'http://localhost:11434/v1',
+        api_key: str = 'EMPTY',
+        max_tokens: int = 102400,
         dspy_cache: bool = True,
 
         use_chroma: bool = True,
@@ -36,7 +36,7 @@ class RAG:
         bm25_weights_rrf: float = 1.15,
         chroma_weights_rrf: float = .85,
     ) -> None:
-        self.logger = Logger('Main', Color.MAGENTA, verbose)
+        self.logger = Logger('RAG', Color.MAGENTA, verbose)
         self.logger.log('Initializing RAG...')
         self.config = Config(
             verbose=verbose,
@@ -67,24 +67,17 @@ class RAG:
                 self,
                 lib_path: str = 'data/raw/vllm-0.10.1',
                 maximum_chunk_size: int = 2000,
-                index_type: IndexType = IndexType.ALL,
-                processed_bm25_index_path: str = 'data/processed/bm25_index',
-                processed_chunks_path: str = 'data/processed/chunks',
-                processed_chunks_metadata_path: str =
-                'data/processed/chunks/chunks_metadata.json',
+                index_type: IndexType = IndexType.ALL
             ) -> None:
         from .modules.indexer import Indexer
-        self.logger.log('Starting Indexer...')
 
         try:
             Indexer(
                 lib_path,
                 maximum_chunk_size,
                 index_type,
-                processed_bm25_index_path,
-                processed_chunks_path,
-                processed_chunks_metadata_path,
                 self.chromadb_interface,
+                self.chunks_interface,
                 self.config,
             )
         except ValidationError as e:
@@ -145,14 +138,65 @@ class RAG:
 
     def answer(
                 self,
-                student_search_results_path: str =
-                'data/output/search_results/search_results.json',
+                question: str,
+                k: int = 5,
                 save_directory: str = 'data/output/search_results_and_answer',
             ) -> None:
+        from .modules.answer import Answer
+
+        try:
+            Answer(
+                save_directory,
+                self.chromadb_interface,
+                self.dataset_interface,
+                self.chunks_interface,
+                self.config
+            ).answer(question, k)
+        except ValidationError as e:
+            self.logger.pydantic_error(e, 'Error while validating parameters:')
+        except Exception as e:
+            self.logger.error(f'Error while searching: {e}')
         self.logger.warning('Not implemented')
 
-    def answer_dataset(self) -> None:
-        self.logger.warning('Not implemented')
+    def answer_dataset(
+                self,
+                student_search_results_path: str =
+                'data/output/search_results/dataset_code_public.json',
+                save_directory: str = 'data/output/search_results_and_answer',
+            ) -> None:
+        from .modules.answer import Answer
 
-    def evaluate(self) -> None:
-        self.logger.warning('Not implemented')
+        try:
+            Answer(
+                save_directory,
+                self.chromadb_interface,
+                self.dataset_interface,
+                self.chunks_interface,
+                self.config
+            ).answer_dataset(student_search_results_path)
+        except ValidationError as e:
+            self.logger.pydantic_error(e, 'Error while validating parameters:')
+        except Exception as e:
+            self.logger.error(f'Error while searching: {e}')
+
+    def evaluate(
+                self,
+                student_answer_path: str =
+                'data/output/search_results/dataset_docs_public.json',
+                dataset_path: str =
+                'data/datasets/AnsweredQuestions/dataset_docs_public.json',
+            ) -> None:
+        from .modules.evaluate import Evaluate
+
+        try:
+            Evaluate(
+                student_answer_path,
+                dataset_path,
+                self.dataset_interface,
+                self.chunks_interface,
+                self.config
+            )
+        except ValidationError as e:
+            self.logger.pydantic_error(e, 'Error while validating parameters:')
+        except Exception as e:
+            self.logger.error(f'Error while searching: {e}')

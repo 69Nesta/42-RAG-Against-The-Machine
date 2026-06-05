@@ -27,10 +27,10 @@ class SearchResultsInterface:
         file_path: str = path.as_posix()
 
         if path in self._cache:
-            self.logger.log(f"Cache hit for {path}")
+            self.logger.log(f'Cache hit for {path}')
             return self._cache[file_path]
 
-        self.logger.log(f"Cache miss for {file_path}. Loading from disk...")
+        self.logger.log(f'Cache miss for {file_path}. Loading from disk...')
         search_results: StudentSearchResults = JSONUtils.load_json_to_model(
             file_path,
             StudentSearchResults

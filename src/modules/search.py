@@ -26,8 +26,8 @@ class SearchConfig(BaseModel):
         for path, should_be_dir in checks:
             p = Path(path)
             if p.exists() and p.is_dir() != should_be_dir:
-                kind = "directory" if should_be_dir else "file"
-                raise ValueError(f"{path} must be a {kind}!")
+                kind = 'directory' if should_be_dir else 'file'
+                raise ValueError(f'{path} must be a {kind}!')
 
         return self
 
@@ -60,7 +60,7 @@ class Search:
         self.chunks_interface = chunks_interface
 
         self.logger = Logger('Search', Color.CYAN, config.verbose)
-        self.logger.log('Initializing Search...')
+        self.logger.log('Initializing Search Module...')
 
         self.config = SearchConfig(
             save_directory=Path(save_directory).as_posix(),
@@ -95,7 +95,7 @@ class Search:
 
         documents: list[MinimalSource] = []
         for doc_id in fused_ids:
-            metadata = self.chunks_interface.get_metadata(doc_id)
+            metadata = self.chunks_interface.get_metadata_by_id(doc_id)
             if metadata is not None:
                 documents.append(metadata)
 
@@ -106,7 +106,6 @@ class Search:
 
         minimal_search_results: list[MinimalSearchResults] = []
         for question in questions:
-            self.logger.log(f"Searching for question: {question.question!r}")
             minimal_search_results.append(MinimalSearchResults(
                 question_id=question.question_id,
                 question=question.question,
@@ -124,7 +123,7 @@ class Search:
     def search_dataset(self, dataset_path: str) -> None:
         path: Path = Path(dataset_path)
         if not path.exists() or not path.is_file():
-            self.logger.error(f"Dataset file {dataset_path!r} does not exist!")
+            self.logger.error(f'Dataset file {dataset_path!r} does not exist!')
             return
 
         dataset = self.dataset_interface.load_dataset(dataset_path)

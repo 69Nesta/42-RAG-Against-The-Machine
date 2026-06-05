@@ -9,4 +9,3 @@ class Bm25sInterface:
     def __init__(self, config: Config):
         self.app_config = config
         self.logger = Logger('Bm25sInterface', Color.YELLOW, config.verbose)
-

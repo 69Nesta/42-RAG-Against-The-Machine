@@ -8,10 +8,15 @@ T = TypeVar('T', bound=BaseModel)
 
 class JSONUtils:
     @staticmethod
-    def save_json(data: Any, file_path: str) -> None:
+    def save_json(data: Any, file_path: str, default: Any = False) -> None:
         try:
             with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=4)
+                json.dump(
+                    data, f,
+                    ensure_ascii=False,
+                    indent=4,
+                    default=default
+                )
         except Exception as e:
             raise ValueError(
                 f'Error occurred while saving JSON to {file_path}: {e}'
