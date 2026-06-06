@@ -1,3 +1,5 @@
+import time
+
 from ..interfaces import ChromaDBInterface, ChunksInterface, Bm25sInterface
 from ..models import ChunkContentModel, MinimalSource
 from ..utils import Logger, Color
@@ -69,10 +71,17 @@ class IndexerModule:
             overlap=overlap
         )
 
+    def index(self) -> None:
+        start_time: float = time.time()
+
         self._explore()
         self._initalize_splitters()
         self._create_config_files()
         self._index_files()
+
+        self.logger.info(
+            f'Indexing completed in {time.time() - start_time:.2f} seconds !'
+        )
 
     def _explore(self) -> None:
         path: Path = Path(self.config.root_path)
@@ -183,7 +192,17 @@ class IndexerModule:
                     )
                 })
 
-                bms25_txt = f'{chunk.page_content} {file_path_str*10}'
+                file_path_formatted: str = file_path_str\
+                    .replace('/', ' ')\
+                    .replace('\\', ' ')\
+                    .replace('.', ' ')\
+                    .replace('_', ' ')\
+                    .replace('-', ' ')
+
+                bms25_txt = (
+                    f'{chunk.page_content} {file_path_str*10} '
+                    f'{file_path_formatted}'
+                )
                 corpus.append(bms25_txt)
             self.logger.log_tqdm(
                 f'Indexed {len(file_chunks):3} chunks from {file_path_str!r} !'

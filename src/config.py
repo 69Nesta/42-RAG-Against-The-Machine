@@ -12,6 +12,8 @@ class Config(BaseModel):
     max_tokens: int
     dspy_cache: bool
 
+    use_query_expansion: bool
+
     use_chroma: bool
     chromadb_path: str
     chromadb_collection_name: str
@@ -22,8 +24,11 @@ class Config(BaseModel):
     processed_bm25_index_path: str
     processed_chunks_path: str
 
-    bm25_weights_rrf: float
-    chroma_weights_rrf: float
+    rrf_weights_bm25: float
+    rrf_weights_chroma: float
+
+    rrf_weights_bm25_expanded: float
+    rrf_weights_chroma_expanded: float
 
     @model_validator(mode='after')
     def check_paths_differ(self) -> 'Config':

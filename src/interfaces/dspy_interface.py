@@ -3,7 +3,7 @@ from ..config import Config
 import dspy
 
 
-class RagSignature(dspy.Signature):
+class AnswerSignature(dspy.Signature):
     documents: list[str] = dspy.InputField(
         description='List of retrieved documents relevant to the question.'
     )
@@ -17,13 +17,33 @@ class RagSignature(dspy.Signature):
     )
 
 
+class ExpandQuery(dspy.Signature):
+    '''
+    Expands a user query into lexical and semantic forms for hybrid retrieval.
+    '''
+
+    query: str = dspy.InputField(
+        description='Original user query'
+    )
+
+    bm25_keywords: list[str] = dspy.OutputField(
+        description='Short keywords for lexical search (BM25). No sentences.'
+    )
+
+    semantic_queries: list[str] = dspy.OutputField(
+        description='Paraphrased queries preserving intent for vector '
+        'search (Chroma).'
+    )
+
+
 class DspyInterface:
     logger: Logger
     app_config: Config
 
     lm: dspy.LM
 
-    predict: dspy.Predict
+    answer_predict: dspy.Predict
+    expand_query_predict: dspy.Predict
 
     def __init__(self, config: Config) -> None:
         self.app_config = config
@@ -39,4 +59,5 @@ class DspyInterface:
         )
         dspy.configure(lm=self.lm)
 
-        self.predict = dspy.Predict(RagSignature)
+        self.answer_predict = dspy.Predict(AnswerSignature)
+        self.expand_query_predict = dspy.Predict(ExpandQuery)

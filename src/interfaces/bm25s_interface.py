@@ -54,10 +54,10 @@ class Bm25sInterface:
         self._is_indexed = True
         self.logger.log(f'BM25 index loaded from {path!r}')
 
-    def retrieve(self, query: str, k: int) -> list[str]:
+    def retrieve(self, queries: list[str], k: int) -> list[str]:
         self._assert_indexed()
         tokens = bm25s.tokenize(
-            [query],
+            queries,
             # stopwords=self.app_config.bm25_stopwords,
             # stemmer=self.app_config.bm25_stemmer,
         )
