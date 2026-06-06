@@ -4,14 +4,18 @@ from ..models import (
     UnansweredQuestion,
     MinimalSource,
 )
-from ..interfaces import ChromaDBInterface, ChunksInterface, DatasetInterface
+from ..interfaces import (
+    ChromaDBInterface,
+    DatasetInterface,
+    ChunksInterface,
+    Bm25sInterface
+)
 from ..utils import Logger, Color, JSONUtils
 from ..config import Config
 
 from pydantic import BaseModel, Field, model_validator
 from tqdm import tqdm
 from pathlib import Path
-import bm25s
 
 
 class SearchConfig(BaseModel):
@@ -33,7 +37,7 @@ class SearchConfig(BaseModel):
         return self
 
 
-t_retrive_document = tuple[str, str, float]
+t_retrive_document = tuple[str, float]
 
 
 class SearchModule:
@@ -42,9 +46,9 @@ class SearchModule:
     chromadb_interface: ChromaDBInterface
     dataset_interface: DatasetInterface
     chunks_interface: ChunksInterface
+    bm25s_interface: Bm25sInterface
 
     config: SearchConfig
-    retriver: bm25s.BM25
 
     def __init__(
                 self,
@@ -53,14 +57,16 @@ class SearchModule:
                 chromadb_interface: ChromaDBInterface,
                 dataset_interface: DatasetInterface,
                 chunks_interface: ChunksInterface,
+                bm25s_interface: Bm25sInterface,
                 config: Config,
             ) -> None:
         self.app_config = config
         self.chromadb_interface = chromadb_interface
         self.dataset_interface = dataset_interface
         self.chunks_interface = chunks_interface
+        self.bm25s_interface = bm25s_interface
 
-        self.logger = Logger('SearchModule', Color.CYAN, config.verbose)
+        self.logger = Logger('SearchModule', Color.BRIGHT_BLUE, config.verbose)
         self.logger.log('Initializing Search Module...')
 
         self.config = SearchConfig(
@@ -68,10 +74,7 @@ class SearchModule:
             k=k,
         )
 
-        self.retriver = bm25s.BM25.load(
-            self.app_config.processed_bm25_index_path,
-            load_corpus=True
-        )
+        self.bm25s_interface.load()
 
     def search_sources(
                 self,
@@ -113,6 +116,7 @@ class SearchModule:
             retrieved_sources=self.search_sources(question)
         )
 
+        self.logger.log('')
         self.logger.info(f'{Color.BOLD}Retrieved Sources:{Color.RESET}')
 
         for idx, source in enumerate(
@@ -127,6 +131,7 @@ class SearchModule:
                 f'{source.first_character_index} - '
                 f'{source.last_character_index}{Color.RESET}'
             )
+        self.logger.log('')
 
         self._save(
             StudentSearchResults(
@@ -170,27 +175,17 @@ class SearchModule:
                 self,
                 question: UnansweredQuestion,
                 k: int
-            ) -> list[t_retrive_document]:
-        query_tokens = bm25s.tokenize(question.question)
-        docs, scores = self.retriver.retrieve(
-            query_tokens=query_tokens,
+            ) -> list[str]:
+        return self.bm25s_interface.retrieve(
+            query=question.question,
             k=k
         )
-
-        result: list[tuple[str, str, float]] = []
-        for doc, score in zip(docs[0], scores[0]):
-            ids: str = str(doc.get('id', ''))
-            text: str = str(doc.get('text', ''))
-
-            result.append((ids, text, score))
-
-        return result
 
     def _get_chromadb_results(
                 self,
                 question: UnansweredQuestion,
                 k: int
-            ) -> list[t_retrive_document]:
+            ) -> list[str]:
         return self.chromadb_interface.search(
             query=question.question,
             k=k
@@ -198,15 +193,12 @@ class SearchModule:
 
     def _reciprocal_rank_fusion(
                 self,
-                documents: list[tuple[list[t_retrive_document], float]],
+                documents: list[tuple[list[str], float]],
                 k: int
             ) -> list[str]:
         scores: dict[str, float] = {}
         for docs, weight in documents:
-            sorted_docs: list[t_retrive_document] = sorted(
-                docs, key=lambda x: x[2], reverse=True
-            )
-            for rank, (doc_id, _, _) in enumerate(sorted_docs):
+            for rank, doc_id in enumerate(docs):
                 score: float = weight * (1.0 / (k + rank + 1))
                 scores[doc_id] = scores.get(doc_id, 0.0) + score
 

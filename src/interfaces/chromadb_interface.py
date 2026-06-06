@@ -89,7 +89,7 @@ class ChromaDBInterface:
             if progress_bar_func is not None:
                 progress_bar_func(end, total)
 
-    def search(self, query: str, k: int = 5) -> list[tuple[str, str, float]]:
+    def search(self, query: str, k: int = 5) -> list[str]:
         if not self.enabled:
             return []
 
@@ -97,15 +97,8 @@ class ChromaDBInterface:
             query_texts=[query],
             n_results=k,
         )
-
         ids = results.get('ids')
-        documents = results.get('documents')
-        distances = results.get('distances')
-        if not ids or not distances or not documents:
+        if not ids:
             return []
 
-        return list(zip(
-            ids[0],
-            documents[0],
-            distances[0]
-        ))
+        return ids[0]

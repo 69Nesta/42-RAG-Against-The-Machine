@@ -10,6 +10,7 @@ from ..interfaces import (
     ChromaDBInterface,
     DatasetInterface,
     ChunksInterface,
+    Bm25sInterface,
     DspyInterface,
 )
 from ..utils import Logger, Color, JSONUtils
@@ -99,7 +100,12 @@ class AnswerModule:
 
         return answer
 
-    def answer(self, question_str: str, k: int = 5) -> None:
+    def answer(
+                self,
+                question_str: str,
+                k: int,
+                bm25s_interface: Bm25sInterface
+            ) -> None:
         from ..modules.search import SearchModule
 
         question: UnansweredQuestion = UnansweredQuestion(
@@ -112,6 +118,7 @@ class AnswerModule:
             chromadb_interface=self.chromadb_interface,
             dataset_interface=self.dataset_interface,
             chunks_interface=self.chunks_interface,
+            bm25s_interface=bm25s_interface,
             config=self.app_config
         )
 
