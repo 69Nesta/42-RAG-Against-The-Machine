@@ -125,7 +125,7 @@ class SearchModule:
         if self.app_config.use_query_expansion:
             raw_documents += self._get_document_from_expended_query(
                 question.question,
-                k_max
+                min(3, self.config.k)
             )
 
         fused_ids: list[str] = self._reciprocal_rank_fusion(

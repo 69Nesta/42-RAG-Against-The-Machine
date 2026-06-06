@@ -139,7 +139,6 @@ class IndexerModule:
             self.files_path,
             desc='Processing files',
             unit='file',
-            disable=not self.app_config.verbose
         ):
 
             file_path_str: str = file.as_posix()

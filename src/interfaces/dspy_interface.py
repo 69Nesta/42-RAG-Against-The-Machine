@@ -27,12 +27,12 @@ class ExpandQuery(dspy.Signature):
     )
 
     bm25_keywords: list[str] = dspy.OutputField(
-        description='Short keywords for lexical search (BM25). No sentences.'
+        description='Exact domain terms, acronyms, synonyms likely present '
+        'verbatim in documents. Avoid generic words.'
     )
 
     semantic_queries: list[str] = dspy.OutputField(
-        description='Paraphrased queries preserving intent for vector '
-        'search (Chroma).'
+        description='1-2 paraphrases max, preserving all specific entities.'
     )
 
 
