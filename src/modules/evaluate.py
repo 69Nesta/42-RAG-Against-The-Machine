@@ -77,8 +77,8 @@ class EvaluateModule:
                 5.0
             ),
             MathUtils.is_in_range(
-                doc.first_character_index,
-                origin.first_character_index,
+                doc.last_character_index,
+                origin.last_character_index,
                 5.0
             )
         ])
@@ -115,56 +115,75 @@ class EvaluateModule:
             for element in student_search.search_results
         }
 
-        numbers_of_invalid_question: int = 0
-        numbers_of_unfound_question: int = 0
-        numbers_of_processed_question: int = 0
-        numbers_of_valid_question: dict[int, int] = {}
-        recall = [1, 3, 5, 10]
+        total_questions: int = len(dataset.rag_questions)
+
+        invalid_questions: int = 0
+        unfound_questions: int = 0
+        processed_questions: int = 0
+        valid_questions: dict[int, int] = {}
+        recall_values = [1, 3, 5, 10]
 
         for question in dataset.rag_questions:
             if (not isinstance(question, AnsweredQuestion) or
                not len(question.sources)):
-                numbers_of_invalid_question += 1
+                invalid_questions += 1
                 continue
 
             if not student_search_map.get(question.question_id):
-                numbers_of_unfound_question += 1
+                unfound_questions += 1
                 continue
 
-            numbers_of_processed_question += 1
-            for k in recall:
+            processed_questions += 1
+            for k in recall_values:
                 is_valid = self._evaluate_sources(
                     question.sources[0],
                     student_search_map[question.question_id].retrieved_sources,
                     k
                 )
 
-                numbers_of_valid_question.update({
-                    k: numbers_of_valid_question.get(k, 0) + is_valid
+                valid_questions.update({
+                    k: valid_questions.get(k, 0) + is_valid
                 })
 
-        if numbers_of_invalid_question > 0:
+        # Log any data quality issues
+        if invalid_questions > 0:
             self.logger.warning(
-                f'Found {numbers_of_invalid_question} invalid questions in the'
-                ' dataset!'
+                f'Found {invalid_questions} invalid questions in the dataset!'
             )
-        if numbers_of_unfound_question > 0:
+        if unfound_questions > 0:
             self.logger.warning(
-                f'Found {numbers_of_unfound_question} questions in the dataset'
-                ' that were not found in the student answers!'
+                f'Found {unfound_questions} questions not found in student '
+                'answers!'
             )
 
+        # Display evaluation results
         self.logger.log('')
-        self.logger.info('Evaluation Results')
-        self.logger.info('========================================')
-        self.logger.info(
-            f'Questions evaluated: {numbers_of_processed_question}'
+        self.logger.box_info(
+            [
+                f'Total questions: {total_questions}',
+                f'Processed questions: {processed_questions}',
+                f'Invalid questions: {invalid_questions}',
+                f'Unfound questions: {unfound_questions}',
+            ],
+            'Evaluation Summary'
+        )
+        self.logger.log('')
+
+        metrics_rows: list[list[str]] = []
+        for k in recall_values:
+            recall_score: float = valid_questions.get(k, 0)
+            divisor = processed_questions if processed_questions > 0 else 1
+            recall_score /= divisor
+
+            metrics_rows.append([
+                f'Recall@{k} ',
+                f'{recall_score:<6.3f}',
+                f'{recall_score * 100:.1f}%',
+            ])
+
+        self.logger.table_info(
+            headers=['Metric', 'Value', 'Percentage'],
+            rows=metrics_rows
         )
 
-        for k in recall:
-            recall_value: float = numbers_of_valid_question.get(k, 0)
-            recall_value /= numbers_of_processed_question
-
-            self.logger.info(
-                f'Recall@{k}: {recall_value:.3f} ({recall_value * 100:.1f}%)'
-            )
+        self.logger.log('')

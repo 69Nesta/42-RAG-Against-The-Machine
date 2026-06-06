@@ -89,12 +89,12 @@ class ChromaDBInterface:
             if progress_bar_func is not None:
                 progress_bar_func(end, total)
 
-    def search(self, query: str, k: int = 5) -> list[str]:
+    def search(self, queries: list[str], k: int = 5) -> list[str]:
         if not self.enabled:
             return []
 
         results = self.get_collection().query(
-            query_texts=[query],
+            query_texts=queries,
             n_results=k,
         )
         ids = results.get('ids')

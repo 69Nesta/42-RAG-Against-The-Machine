@@ -8,7 +8,8 @@ from ..interfaces import (
     ChromaDBInterface,
     DatasetInterface,
     ChunksInterface,
-    Bm25sInterface
+    Bm25sInterface,
+    DspyInterface
 )
 from ..utils import Logger, Color, JSONUtils
 from ..config import Config
@@ -38,9 +39,6 @@ class SearchConfig(BaseModel):
         return self
 
 
-t_retrive_document = tuple[str, float]
-
-
 class SearchModule:
     logger: Logger
     app_config: Config
@@ -48,6 +46,7 @@ class SearchModule:
     dataset_interface: DatasetInterface
     chunks_interface: ChunksInterface
     bm25s_interface: Bm25sInterface
+    dspy_interface: DspyInterface
 
     config: SearchConfig
 
@@ -59,6 +58,7 @@ class SearchModule:
                 dataset_interface: DatasetInterface,
                 chunks_interface: ChunksInterface,
                 bm25s_interface: Bm25sInterface,
+                dspy_interface: DspyInterface,
                 config: Config,
             ) -> None:
         self.app_config = config
@@ -66,6 +66,7 @@ class SearchModule:
         self.dataset_interface = dataset_interface
         self.chunks_interface = chunks_interface
         self.bm25s_interface = bm25s_interface
+        self.dspy_interface = dspy_interface
 
         self.logger = Logger('SearchModule', Color.BRIGHT_BLUE, config.verbose)
         self.logger.log('Initializing Search Module...')
@@ -77,6 +78,30 @@ class SearchModule:
 
         self.bm25s_interface.load()
 
+    def _get_document_from_expended_query(
+                self,
+                query: str,
+                k: int
+            ) -> list[tuple[list[str], float]]:
+        expended_query = self.dspy_interface.expand_query_predict(query=query)
+
+        return [
+            (
+                self.bm25s_interface.retrieve(
+                    expended_query.bm25_keywords,
+                    k
+                ),
+                self.app_config.rrf_weights_bm25_expanded
+            ),
+            (
+                self.chromadb_interface.search(
+                    expended_query.semantic_queries,
+                    k
+                ),
+                self.app_config.rrf_weights_chroma_expanded
+            )
+        ]
+
     def search_sources(
                 self,
                 question: UnansweredQuestion
@@ -86,17 +111,25 @@ class SearchModule:
         )
         k_max: int = max(self.config.k * 10, 50)
 
+        raw_documents: list[tuple[list[str], float]] = [
+            (
+                self._get_bm25_results(question, self.config.k),
+                self.app_config.rrf_weights_bm25
+            ),
+            (
+                self._get_chromadb_results(question, k_max),
+                self.app_config.rrf_weights_chroma
+            )
+        ]
+
+        if self.app_config.use_query_expansion:
+            raw_documents += self._get_document_from_expended_query(
+                question.question,
+                k_max
+            )
+
         fused_ids: list[str] = self._reciprocal_rank_fusion(
-            [
-                (
-                    self._get_bm25_results(question, self.config.k),
-                    self.app_config.bm25_weights_rrf
-                ),
-                (
-                    self._get_chromadb_results(question, k_max),
-                    self.app_config.chroma_weights_rrf
-                )
-            ],
+            raw_documents,
             self.config.k
         )
 
@@ -193,7 +226,7 @@ class SearchModule:
                 k: int
             ) -> list[str]:
         return self.bm25s_interface.retrieve(
-            query=question.question,
+            queries=[question.question],
             k=k
         )
 
@@ -203,7 +236,7 @@ class SearchModule:
                 k: int
             ) -> list[str]:
         return self.chromadb_interface.search(
-            query=question.question,
+            queries=[question.question],
             k=k
         )
 

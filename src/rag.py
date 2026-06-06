@@ -1,6 +1,7 @@
 from .interfaces import (
     ChromaDBInterface, DatasetInterface,
-    ChunksInterface, Bm25sInterface
+    ChunksInterface, Bm25sInterface,
+    DspyInterface
 )
 from .models import UnansweredQuestion
 from .utils import Logger, Color
@@ -18,6 +19,7 @@ class RAG:
     dataset_interface: DatasetInterface
     chunks_interface: ChunksInterface
     bm25s_interface: Bm25sInterface
+    dspy_interface: DspyInterface
 
     def __init__(
         self,
@@ -30,6 +32,8 @@ class RAG:
         max_tokens: int = 102400,
         dspy_cache: bool = True,
 
+        use_query_expansion: bool = False,
+
         use_chroma: bool = True,
         chromadb_collection_name: str = 'chunks',
         chromadb_path: str = 'data/processed/chunks/chromadb',
@@ -40,8 +44,10 @@ class RAG:
         processed_bm25_index_path: str = 'data/processed/bm25_index',
         processed_chunks_path: str = 'data/processed/chunks/contents.json',
 
-        bm25_weights_rrf: float = 1.15,
-        chroma_weights_rrf: float = .85,
+        rrf_weights_bm25: float = 1.15,
+        rrf_weights_chroma: float = .85,
+        rrf_weights_bm25_expanded: float = 0.5,
+        rrf_weights_chroma_expanded: float = 0.5,
     ) -> None:
         self.logger = Logger('RAG', Color.MAGENTA, verbose)
         self.logger.log('Initializing RAG...')
@@ -55,6 +61,8 @@ class RAG:
             max_tokens=max_tokens,
             dspy_cache=dspy_cache,
 
+            use_query_expansion=use_query_expansion,
+
             use_chroma=use_chroma,
             chromadb_path=chromadb_path,
             chromadb_collection_name=chromadb_collection_name,
@@ -65,14 +73,17 @@ class RAG:
             processed_bm25_index_path=processed_bm25_index_path,
             processed_chunks_path=processed_chunks_path,
 
-            bm25_weights_rrf=bm25_weights_rrf,
-            chroma_weights_rrf=chroma_weights_rrf,
+            rrf_weights_bm25=rrf_weights_bm25,
+            rrf_weights_chroma=rrf_weights_chroma,
+            rrf_weights_bm25_expanded=rrf_weights_bm25_expanded,
+            rrf_weights_chroma_expanded=rrf_weights_chroma_expanded,
         )
 
         self.chromadb_interface = ChromaDBInterface(config=self.config)
         self.dataset_interface = DatasetInterface(config=self.config)
         self.chunks_interface = ChunksInterface(config=self.config)
         self.bm25s_interface = Bm25sInterface(config=self.config)
+        self.dspy_interface = DspyInterface(config=self.config)
 
     def index(
                 self,
@@ -104,7 +115,7 @@ class RAG:
                 question: str,
                 k: int = 5,
                 save_directory: str = 'data/output/search_results',
-                file_name: str = 'search_results.json'
+                file_name: str = 'search_results.json',
             ) -> None:
         from .modules.search import SearchModule
 
@@ -116,6 +127,7 @@ class RAG:
                 self.dataset_interface,
                 self.chunks_interface,
                 self.bm25s_interface,
+                self.dspy_interface,
                 self.config
             ).search(
                 UnansweredQuestion(question=question),
@@ -143,6 +155,7 @@ class RAG:
                 self.dataset_interface,
                 self.chunks_interface,
                 self.bm25s_interface,
+                self.dspy_interface,
                 self.config
             ).search_dataset(
                 dataset_path
@@ -166,6 +179,7 @@ class RAG:
                 self.chromadb_interface,
                 self.dataset_interface,
                 self.chunks_interface,
+                self.dspy_interface,
                 self.config
             ).answer(question, k, self.bm25s_interface)
         except ValidationError as e:
@@ -187,6 +201,7 @@ class RAG:
                 self.chromadb_interface,
                 self.dataset_interface,
                 self.chunks_interface,
+                self.dspy_interface,
                 self.config
             ).answer_dataset(student_search_results_path)
         except ValidationError as e:

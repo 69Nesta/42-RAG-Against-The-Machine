@@ -59,12 +59,14 @@ class AnswerModule:
                 chromadb_interface: ChromaDBInterface,
                 dataset_interface: DatasetInterface,
                 chunks_interface: ChunksInterface,
+                dspy_interface: DspyInterface,
                 config: Config,
             ) -> None:
         self.app_config = config
         self.chromadb_interface = chromadb_interface
         self.dataset_interface = dataset_interface
         self.chunks_interface = chunks_interface
+        self.dspy_interface = dspy_interface
 
         self.logger = Logger('AnwerModule', Color.CYAN, config.verbose)
         self.logger.log('Initializing Answer Module...')
@@ -73,7 +75,7 @@ class AnswerModule:
             save_directory=Path(save_directory).as_posix(),
         )
 
-        self.dspy_interface = DspyInterface(config)
+        # self.dspy_interface = DspyInterface(config)
 
     def _answer(
                 self,
@@ -87,7 +89,7 @@ class AnswerModule:
             for source in sources
         ]
 
-        dspy_answer = self.dspy_interface.predict(
+        dspy_answer = self.dspy_interface.answer_predict(
             documents=documents,
             question=question.question,
         )
@@ -105,7 +107,7 @@ class AnswerModule:
                 self,
                 question_str: str,
                 k: int,
-                bm25s_interface: Bm25sInterface
+                bm25s_interface: Bm25sInterface,
             ) -> None:
         from ..modules.search import SearchModule
 
@@ -127,6 +129,7 @@ class AnswerModule:
             dataset_interface=self.dataset_interface,
             chunks_interface=self.chunks_interface,
             bm25s_interface=bm25s_interface,
+            dspy_interface=self.dspy_interface,
             config=self.app_config
         )
         sources: list[MinimalSource] = search_module.search_sources(question)
