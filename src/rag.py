@@ -172,7 +172,6 @@ class RAG:
             self.logger.pydantic_error(e, 'Error while validating parameters:')
         except Exception as e:
             self.logger.error(f'Error while searching: {e}')
-        self.logger.warning('Not implemented')
 
     def answer_dataset(
                 self,

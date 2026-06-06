@@ -211,7 +211,7 @@ class IndexerModule:
                 unit='chunk',
             )
 
-            def progress_bar_func(current: int, total: int) -> None:
+            def progress_bar_func(current: int, _: int) -> None:
                 pbar.update(current - pbar.n)
 
             self.chromadb_interface.batch_add(

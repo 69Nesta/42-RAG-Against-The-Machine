@@ -107,6 +107,27 @@ class SearchModule:
 
         return documents
 
+    def print_retrieved_sources(
+                self,
+                sources: list[MinimalSource]
+            ) -> None:
+
+        self.logger.info('')
+        self.logger.table_info(
+            headers=['#', 'File Path', 'Character Range'],
+            rows=[
+                [
+                    f'{Color.YELLOW}{idx:<4}{Color.RESET}',
+                    (str(source.file_path) if len(str(source.file_path)) <= 63
+                     else '…' + str(source.file_path)[-62:]),
+                    f'{Color.WHITE}{source.first_character_index:<4} – '
+                    f'{source.last_character_index:<4}{Color.RESET}'
+                ]
+                for idx, source in enumerate(sources, start=1)
+            ]
+        )
+        self.logger.info('')
+
     def search(self, question: UnansweredQuestion, file: str) -> None:
         self.logger.log('Starting search...')
 
@@ -118,19 +139,7 @@ class SearchModule:
 
         self.logger.log('')
         self.logger.info(f'{Color.BOLD}Retrieved Sources:{Color.RESET}')
-
-        for idx, source in enumerate(
-            minimal_search_results.retrieved_sources,
-            start=1
-        ):
-            self.logger.info(
-                f' [{Color.YELLOW}{idx}{Color.RESET}] File: {source.file_path}'
-            )
-            self.logger.info(
-                f'     {Color.WHITE}Character Range: '
-                f'{source.first_character_index} - '
-                f'{source.last_character_index}{Color.RESET}'
-            )
+        self.print_retrieved_sources(minimal_search_results.retrieved_sources)
         self.logger.log('')
 
         self._save(
@@ -217,5 +226,5 @@ class SearchModule:
         JSONUtils.save_json(search_results.model_dump(), save_path.as_posix())
 
         self.logger.info(
-            f'Saved search results to {save_path.as_posix()!r} successfully !'
+            f' Saved → \'{Color.ITALIC}{save_path.as_posix()}{Color.RESET}\''
         )
