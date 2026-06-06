@@ -17,8 +17,9 @@ from ..utils import Logger, Color, JSONUtils
 from ..config import Config
 
 from pydantic import BaseModel, Field, model_validator
-from tqdm import tqdm
 from pathlib import Path
+from tqdm import tqdm
+import time
 
 
 class AnswerConfig(BaseModel):
@@ -166,6 +167,7 @@ class AnswerModule:
         )
 
     def answer_dataset(self, student_search_results_path: str) -> None:
+        start_time: float = time.time()
         self.search_results_interface = SearchResultsInterface(self.app_config)
         loaded_results = self.search_results_interface.get_search_results(
             student_search_results_path
@@ -207,6 +209,11 @@ class AnswerModule:
             )
 
         self._save(answers, Path(student_search_results_path).name)
+
+        self.logger.info(
+            f'Answered {len(answers.search_results)} questions in '
+            f'{time.time() - start_time:.2f}s !'
+        )
 
     def _save(self, answers: StudentSearchResultsAndAnswer, file: str) -> None:
         save_path: Path = Path(self.config.save_directory) / file
