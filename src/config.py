@@ -16,6 +16,9 @@ class Config(BaseModel):
     chromadb_path: str
     chromadb_collection_name: str
 
+    bm25_k1: float
+    bm25_b: float
+
     processed_bm25_index_path: str
     processed_chunks_path: str
 

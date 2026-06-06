@@ -4,14 +4,19 @@ from ..models import (
     UnansweredQuestion,
     MinimalSource,
 )
-from ..interfaces import ChromaDBInterface, ChunksInterface, DatasetInterface
+from ..interfaces import (
+    ChromaDBInterface,
+    DatasetInterface,
+    ChunksInterface,
+    Bm25sInterface
+)
 from ..utils import Logger, Color, JSONUtils
 from ..config import Config
 
 from pydantic import BaseModel, Field, model_validator
-from tqdm import tqdm
 from pathlib import Path
-import bm25s
+from tqdm import tqdm
+import time
 
 
 class SearchConfig(BaseModel):
@@ -33,7 +38,7 @@ class SearchConfig(BaseModel):
         return self
 
 
-t_retrive_document = tuple[str, str, float]
+t_retrive_document = tuple[str, float]
 
 
 class SearchModule:
@@ -42,9 +47,9 @@ class SearchModule:
     chromadb_interface: ChromaDBInterface
     dataset_interface: DatasetInterface
     chunks_interface: ChunksInterface
+    bm25s_interface: Bm25sInterface
 
     config: SearchConfig
-    retriver: bm25s.BM25
 
     def __init__(
                 self,
@@ -53,14 +58,16 @@ class SearchModule:
                 chromadb_interface: ChromaDBInterface,
                 dataset_interface: DatasetInterface,
                 chunks_interface: ChunksInterface,
+                bm25s_interface: Bm25sInterface,
                 config: Config,
             ) -> None:
         self.app_config = config
         self.chromadb_interface = chromadb_interface
         self.dataset_interface = dataset_interface
         self.chunks_interface = chunks_interface
+        self.bm25s_interface = bm25s_interface
 
-        self.logger = Logger('SearchModule', Color.CYAN, config.verbose)
+        self.logger = Logger('SearchModule', Color.BRIGHT_BLUE, config.verbose)
         self.logger.log('Initializing Search Module...')
 
         self.config = SearchConfig(
@@ -68,10 +75,7 @@ class SearchModule:
             k=k,
         )
 
-        self.retriver = bm25s.BM25.load(
-            self.app_config.processed_bm25_index_path,
-            load_corpus=True
-        )
+        self.bm25s_interface.load()
 
     def search_sources(
                 self,
@@ -104,6 +108,27 @@ class SearchModule:
 
         return documents
 
+    def print_retrieved_sources(
+                self,
+                sources: list[MinimalSource]
+            ) -> None:
+
+        self.logger.info('')
+        self.logger.table_info(
+            headers=['#', 'File Path', 'Character Range'],
+            rows=[
+                [
+                    f'{Color.YELLOW}{idx:<4}{Color.RESET}',
+                    (str(source.file_path) if len(str(source.file_path)) <= 63
+                     else '…' + str(source.file_path)[-62:]),
+                    f'{Color.WHITE}{source.first_character_index:<4} – '
+                    f'{source.last_character_index:<4}{Color.RESET}'
+                ]
+                for idx, source in enumerate(sources, start=1)
+            ]
+        )
+        self.logger.info('')
+
     def search(self, question: UnansweredQuestion, file: str) -> None:
         self.logger.log('Starting search...')
 
@@ -113,20 +138,10 @@ class SearchModule:
             retrieved_sources=self.search_sources(question)
         )
 
+        self.logger.log('')
         self.logger.info(f'{Color.BOLD}Retrieved Sources:{Color.RESET}')
-
-        for idx, source in enumerate(
-            minimal_search_results.retrieved_sources,
-            start=1
-        ):
-            self.logger.info(
-                f' [{Color.YELLOW}{idx}{Color.RESET}] File: {source.file_path}'
-            )
-            self.logger.info(
-                f'     {Color.WHITE}Character Range: '
-                f'{source.first_character_index} - '
-                f'{source.last_character_index}{Color.RESET}'
-            )
+        self.print_retrieved_sources(minimal_search_results.retrieved_sources)
+        self.logger.log('')
 
         self._save(
             StudentSearchResults(
@@ -137,6 +152,7 @@ class SearchModule:
         )
 
     def search_dataset(self, dataset_path: str) -> None:
+        start_time: float = time.time()
         path: Path = Path(dataset_path)
         if not path.exists() or not path.is_file():
             self.logger.error(f'Dataset file {dataset_path!r} does not exist!')
@@ -166,31 +182,26 @@ class SearchModule:
             path.name
         )
 
+        self.logger.info(
+            f' Processed {len(dataset.rag_questions)} '
+            f'questions in {time.time() - start_time:.2f}s !'
+        )
+
     def _get_bm25_results(
                 self,
                 question: UnansweredQuestion,
                 k: int
-            ) -> list[t_retrive_document]:
-        query_tokens = bm25s.tokenize(question.question)
-        docs, scores = self.retriver.retrieve(
-            query_tokens=query_tokens,
+            ) -> list[str]:
+        return self.bm25s_interface.retrieve(
+            query=question.question,
             k=k
         )
-
-        result: list[tuple[str, str, float]] = []
-        for doc, score in zip(docs[0], scores[0]):
-            ids: str = str(doc.get('id', ''))
-            text: str = str(doc.get('text', ''))
-
-            result.append((ids, text, score))
-
-        return result
 
     def _get_chromadb_results(
                 self,
                 question: UnansweredQuestion,
                 k: int
-            ) -> list[t_retrive_document]:
+            ) -> list[str]:
         return self.chromadb_interface.search(
             query=question.question,
             k=k
@@ -198,15 +209,12 @@ class SearchModule:
 
     def _reciprocal_rank_fusion(
                 self,
-                documents: list[tuple[list[t_retrive_document], float]],
+                documents: list[tuple[list[str], float]],
                 k: int
             ) -> list[str]:
         scores: dict[str, float] = {}
         for docs, weight in documents:
-            sorted_docs: list[t_retrive_document] = sorted(
-                docs, key=lambda x: x[2], reverse=True
-            )
-            for rank, (doc_id, _, _) in enumerate(sorted_docs):
+            for rank, doc_id in enumerate(docs):
                 score: float = weight * (1.0 / (k + rank + 1))
                 scores[doc_id] = scores.get(doc_id, 0.0) + score
 
@@ -225,5 +233,5 @@ class SearchModule:
         JSONUtils.save_json(search_results.model_dump(), save_path.as_posix())
 
         self.logger.info(
-            f'Saved search results to {save_path.as_posix()!r} successfully !'
+            f' Saved → \'{Color.ITALIC}{save_path.as_posix()}{Color.RESET}\''
         )

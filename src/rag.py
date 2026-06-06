@@ -1,4 +1,7 @@
-from .interfaces import ChromaDBInterface, DatasetInterface, ChunksInterface
+from .interfaces import (
+    ChromaDBInterface, DatasetInterface,
+    ChunksInterface, Bm25sInterface
+)
 from .models import UnansweredQuestion
 from .utils import Logger, Color
 from .enums import IndexType
@@ -14,6 +17,7 @@ class RAG:
     chromadb_interface: ChromaDBInterface
     dataset_interface: DatasetInterface
     chunks_interface: ChunksInterface
+    bm25s_interface: Bm25sInterface
 
     def __init__(
         self,
@@ -29,6 +33,9 @@ class RAG:
         use_chroma: bool = True,
         chromadb_collection_name: str = 'chunks',
         chromadb_path: str = 'data/processed/chunks/chromadb',
+
+        bm25_k1: float = 1.7,
+        bm25_b: float = 0.5,
 
         processed_bm25_index_path: str = 'data/processed/bm25_index',
         processed_chunks_path: str = 'data/processed/chunks/contents.json',
@@ -52,6 +59,9 @@ class RAG:
             chromadb_path=chromadb_path,
             chromadb_collection_name=chromadb_collection_name,
 
+            bm25_k1=bm25_k1,
+            bm25_b=bm25_b,
+
             processed_bm25_index_path=processed_bm25_index_path,
             processed_chunks_path=processed_chunks_path,
 
@@ -62,12 +72,14 @@ class RAG:
         self.chromadb_interface = ChromaDBInterface(config=self.config)
         self.dataset_interface = DatasetInterface(config=self.config)
         self.chunks_interface = ChunksInterface(config=self.config)
+        self.bm25s_interface = Bm25sInterface(config=self.config)
 
     def index(
                 self,
                 lib_path: str = 'data/raw/vllm-0.10.1',
                 maximum_chunk_size: int = 2000,
-                index_type: IndexType = IndexType.ALL
+                index_type: IndexType = IndexType.ALL,
+                overlap: int = 5
             ) -> None:
         from .modules.indexer import IndexerModule
 
@@ -76,8 +88,10 @@ class RAG:
                 lib_path,
                 maximum_chunk_size,
                 index_type,
+                overlap,
                 self.chromadb_interface,
                 self.chunks_interface,
+                self.bm25s_interface,
                 self.config,
             )
         except ValidationError as e:
@@ -101,6 +115,7 @@ class RAG:
                 self.chromadb_interface,
                 self.dataset_interface,
                 self.chunks_interface,
+                self.bm25s_interface,
                 self.config
             ).search(
                 UnansweredQuestion(question=question),
@@ -127,6 +142,7 @@ class RAG:
                 self.chromadb_interface,
                 self.dataset_interface,
                 self.chunks_interface,
+                self.bm25s_interface,
                 self.config
             ).search_dataset(
                 dataset_path
@@ -151,12 +167,11 @@ class RAG:
                 self.dataset_interface,
                 self.chunks_interface,
                 self.config
-            ).answer(question, k)
+            ).answer(question, k, self.bm25s_interface)
         except ValidationError as e:
             self.logger.pydantic_error(e, 'Error while validating parameters:')
         except Exception as e:
             self.logger.error(f'Error while searching: {e}')
-        self.logger.warning('Not implemented')
 
     def answer_dataset(
                 self,

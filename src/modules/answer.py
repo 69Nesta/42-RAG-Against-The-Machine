@@ -10,14 +10,16 @@ from ..interfaces import (
     ChromaDBInterface,
     DatasetInterface,
     ChunksInterface,
+    Bm25sInterface,
     DspyInterface,
 )
 from ..utils import Logger, Color, JSONUtils
 from ..config import Config
 
 from pydantic import BaseModel, Field, model_validator
-from tqdm import tqdm
 from pathlib import Path
+from tqdm import tqdm
+import time
 
 
 class AnswerConfig(BaseModel):
@@ -99,12 +101,24 @@ class AnswerModule:
 
         return answer
 
-    def answer(self, question_str: str, k: int = 5) -> None:
+    def answer(
+                self,
+                question_str: str,
+                k: int,
+                bm25s_interface: Bm25sInterface
+            ) -> None:
         from ..modules.search import SearchModule
 
         question: UnansweredQuestion = UnansweredQuestion(
-            question=question_str,
+            question=question_str
         )
+
+        self.logger.info('')
+        self.logger.box_info(
+            [question.question],
+            'Question'
+        )
+        self.logger.log('')
 
         search_module: SearchModule = SearchModule(
             k,
@@ -112,26 +126,48 @@ class AnswerModule:
             chromadb_interface=self.chromadb_interface,
             dataset_interface=self.dataset_interface,
             chunks_interface=self.chunks_interface,
+            bm25s_interface=bm25s_interface,
             config=self.app_config
         )
-
         sources: list[MinimalSource] = search_module.search_sources(question)
+
+        self.logger.log('')
+        self.logger.table_info(
+            headers=['#', 'File', 'Char range'],
+            rows=[
+                [
+                    f'{Color.YELLOW}{idx:<4}{Color.RESET}',
+                    (str(source.file_path) if len(str(source.file_path)) <= 63
+                     else '…' + str(source.file_path)[-62:]),
+                    f'{Color.WHITE}{source.first_character_index:<4} – '
+                    f'{source.last_character_index:<4}{Color.RESET}'
+                ]
+                for idx, source in enumerate(sources, start=1)
+            ]
+        )
+        self.logger.log('')
 
         answer: AnsweredQuestion = self._answer(
             question=question,
             sources=sources
         )
 
-        self.logger.info(f'Answer: {answer.answer!r}')
+        self.logger.info('')
+        self.logger.box_info(
+            [answer.answer],
+            f'Answer ({len(sources)} source{"s" if len(sources) != 1 else ""})'
+        )
 
         path = Path(self.config.save_directory, 'answer.json')
         path.parent.mkdir(parents=True, exist_ok=True)
-        JSONUtils.save_json(
-            answer.model_dump(),
-            path.as_posix()
+        JSONUtils.save_json(answer.model_dump(), path.as_posix())
+        self.logger.info('')
+        self.logger.info(
+            f'  Saved → \'{Color.ITALIC}{path}{Color.RESET}\''
         )
 
     def answer_dataset(self, student_search_results_path: str) -> None:
+        start_time: float = time.time()
         self.search_results_interface = SearchResultsInterface(self.app_config)
         loaded_results = self.search_results_interface.get_search_results(
             student_search_results_path
@@ -174,15 +210,23 @@ class AnswerModule:
 
         self._save(answers, Path(student_search_results_path).name)
 
+        self.logger.info(
+            f'Answered {len(answers.search_results)} questions in '
+            f'{time.time() - start_time:.2f}s !'
+        )
+
     def _save(self, answers: StudentSearchResultsAndAnswer, file: str) -> None:
         save_path: Path = Path(self.config.save_directory) / file
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
-        self.logger.info(
+        self.logger.log(
             f'Saving results to {save_path.as_posix()!r}...'
         )
 
         JSONUtils.save_json(
             answers.model_dump(),
             save_path.as_posix()
+        )
+        self.logger.info(
+            f'  Saved → \'{Color.ITALIC}{save_path.as_posix()}{Color.RESET}\''
         )

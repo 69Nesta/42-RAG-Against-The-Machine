@@ -13,14 +13,18 @@ class ChunksInterface:
 
     def __init__(self, config: Config):
         self.app_config = config
-        self.logger = Logger('ChunksInterface', Color.BLUE, config.verbose)
+        self.logger = Logger(
+            'ChunksInterface',
+            Color.BRIGHT_CYAN,
+            config.verbose
+        )
 
         self._loaded = False
         self._chunks = {}
 
     def save_chunks(self, chunks: dict[str, ChunkContentModel]) -> None:
         self.logger.info(
-            f'Saving chunks to {self.app_config.processed_chunks_path}'
+            f'Saving chunks to {self.app_config.processed_chunks_path!r}'
         )
 
         JSONUtils.save_json(
@@ -38,7 +42,7 @@ class ChunksInterface:
             return
 
         self.logger.log_tqdm(
-            f'Loading chunks from {self.app_config.processed_chunks_path}'
+            f'Loading chunks from {self.app_config.processed_chunks_path!r}'
         )
         chunks_dict = JSONUtils.load_json(
             self.app_config.processed_chunks_path
@@ -61,14 +65,15 @@ class ChunksInterface:
 
     def get_chunk_by_id(self, content_id: str) -> ChunkContentModel:
         self._load()
+        chunk_id: str = str(content_id)
 
-        if content_id not in self._chunks:
-            raise ValueError(f'Content ID {content_id} not found in chunks.')
+        if chunk_id not in self._chunks:
+            raise ValueError(f'Content ID {chunk_id!r} not found in chunks.')
 
-        return self._chunks[content_id]
+        return self._chunks[chunk_id]
 
-    def get_metadata_by_id(self, content_id: str) -> MinimalSource:
-        return self.get_chunk_by_id(content_id).metadata
+    def get_metadata_by_id(self, chunk_id: str) -> MinimalSource:
+        return self.get_chunk_by_id(chunk_id).metadata
 
     def get_chunk_by_metadata(
                 self,

@@ -1,4 +1,4 @@
-from ..interfaces import ChromaDBInterface, ChunksInterface
+from ..interfaces import ChromaDBInterface, ChunksInterface, Bm25sInterface
 from ..models import ChunkContentModel, MinimalSource
 from ..utils import Logger, Color
 from ..enums import IndexType
@@ -9,7 +9,6 @@ from tqdm import tqdm
 from langchain_core.documents import Document
 from pydantic import BaseModel, Field
 from pathlib import Path
-import bm25s
 
 
 class IndexerConfig(BaseModel):
@@ -17,12 +16,15 @@ class IndexerConfig(BaseModel):
     maximum_chunk_size: int = Field(..., gt=0, le=2000)
     index_type: IndexType
 
+    overlap: int = Field(...,  gt=0, lt=100)
+
 
 class IndexerModule:
     logger: Logger
     app_config: Config
     chromadb_interface: ChromaDBInterface
     chunks_interface: ChunksInterface
+    bm25s_interface: Bm25sInterface
 
     config: IndexerConfig
 
@@ -46,13 +48,16 @@ class IndexerModule:
                 root_path: str,
                 maximum_chunk_size: int,
                 index_type: IndexType,
+                overlap: int,
                 chromadb_interface: ChromaDBInterface,
                 chunks_interface: ChunksInterface,
+                bm25s_interface: Bm25sInterface,
                 config: Config,
             ) -> None:
         self.app_config = config
         self.chromadb_interface = chromadb_interface
         self.chunks_interface = chunks_interface
+        self.bm25s_interface = bm25s_interface
 
         self.logger = Logger('IndexerModule', Color.CYAN, config.verbose)
         self.logger.log('Initializing Indexer Module...')
@@ -61,6 +66,7 @@ class IndexerModule:
             root_path=root_path,
             maximum_chunk_size=maximum_chunk_size,
             index_type=index_type,
+            overlap=overlap
         )
 
         self._explore()
@@ -72,7 +78,7 @@ class IndexerModule:
         path: Path = Path(self.config.root_path)
         self.files_path = []
         self.logger.log(
-            f'Exploring {path}...'
+            f'Exploring {path!r}...'
         )
 
         allowed_ext: set[str] = self.ALLOWED_FILES.get(
@@ -91,7 +97,7 @@ class IndexerModule:
 
     def _initalize_splitters(self) -> None:
         chunk_size: int = self.config.maximum_chunk_size
-        chunk_overlap: int = chunk_size * 5 // 100
+        chunk_overlap: int = chunk_size * (self.config.overlap // 100)
 
         self.files_splitter = {
             '.py': RecursiveCharacterTextSplitter.from_language(
@@ -151,7 +157,6 @@ class IndexerModule:
                 desc=f'Chunks from {file.name}',
                 unit='chunk',
                 leave=False,
-                disable=not self.app_config.verbose
             ):
                 start_index: int = chunk.metadata['start_index']
                 end_index: int = start_index + len(chunk.page_content)
@@ -189,22 +194,9 @@ class IndexerModule:
         )
 
         self.logger.log('Creating BM25 index...')
-        corpus_tokens = bm25s.tokenize(
-            list(tqdm(
-                corpus,
-                desc='Tokenizing corpus',
-                unit='doc',
-                disable=not self.app_config.verbose
-            ))
-        )
-        retriever = bm25s.BM25(corpus=corpus)
-        retriever.index(corpus_tokens)
 
-        self.logger.log(
-            f'Saving BM25 index to {self.app_config.processed_bm25_index_path}'
-            '...'
-        )
-        retriever.save(self.app_config.processed_bm25_index_path)
+        self.bm25s_interface.index(corpus)
+        self.bm25s_interface.save()
 
         self.chunks_interface.save_chunks(chunks)
         self.logger.info(
@@ -219,7 +211,7 @@ class IndexerModule:
                 unit='chunk',
             )
 
-            def progress_bar_func(current: int, total: int) -> None:
+            def progress_bar_func(current: int, _: int) -> None:
                 pbar.update(current - pbar.n)
 
             self.chromadb_interface.batch_add(

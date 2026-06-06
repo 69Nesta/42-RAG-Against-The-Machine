@@ -3,6 +3,7 @@ from .color import Color
 from pydantic import ValidationError
 from tqdm import tqdm
 import datetime
+import re
 
 
 class Logger:
@@ -178,3 +179,124 @@ class Logger:
                     self.error(f'Error: {field}: {msg}')
                 else:
                     self.error(f'Error: {msg}')
+
+    def _generate_box(
+                self,
+                content: list[str],
+                title: str,
+                width: int | None = None,
+            ) -> list[str]:
+        '''Generate a box around the given content.
+
+        Args:
+            content (str): The content to place inside the box.
+            width (int): The total width of the box.
+            title (str): The title to display in the top border of the box.
+
+        Returns:
+            list[str]: A list of strings representing the lines of the box.
+        '''
+        if width is None:
+            width = max(len(line) for line in content) + 4
+
+        result: list[str] = []
+        title_line = f'┌─ {title} ' + f'{"─" * (width - len(title) - 3)}┐'
+        result.append(title_line)
+
+        for line in content:
+            result.append(f'│  {line} ' + f'{" " * (width - len(line) - 3)}│')
+        result.append(f'└{"─" * width}┘')
+        return result
+
+    def box_info(
+                self,
+                content: list[str],
+                title: str,
+                width: int | None = None
+            ) -> None:
+        '''Print a box with the given content and title.
+
+        Args:
+            content (str): The content to place inside the box.
+            width (int): The total width of the box.
+            title (str): The title to display in the top border of the box.
+        '''
+        box_lines = self._generate_box(content, title, width)
+        for line in box_lines:
+            self.info(line)
+
+    def _strip_ansi(self, text: str) -> str:
+        """Remove ANSI escape codes for accurate length measurement."""
+        return re.sub(r'\x1b\[[0-9;]*m', '', text)
+
+    def _generate_table(
+                self,
+                headers: list[str],
+                rows: list[list[str]],
+                column_widths: list[int] | None = None,
+                prefix: str = ' '
+            ) -> list[str]:
+        '''Generate a borderless table with the given headers and rows.
+        Args:
+            headers (list[str]): The list of column headers.
+            rows (list[list[str]]): The list of rows, where each row is a list
+            of cell values.
+            column_widths (list[int] | None): Optional list of column widths.
+            If not provided, widths will be calculated based on content.
+            prefix (str): String to prefix each line of the table with.
+        Returns:
+            list[str]: A list of strings representing the lines of the table.
+        '''
+        if not headers:
+            return []
+
+        if column_widths is None:
+            column_widths = [len(self._strip_ansi(h)) for h in headers]
+            for row in rows:
+                for i, cell in enumerate(row):
+                    if i < len(column_widths):
+                        column_widths[i] = max(
+                            column_widths[i],
+                            len(self._strip_ansi(str(cell)))
+                        )
+
+        lines: list[str] = []
+
+        def format_row(cells: list[str]) -> str:
+            padded = []
+            for i, cell in enumerate(cells):
+                cell_str = str(cell)
+                visible_len = len(self._strip_ansi(cell_str))
+                padding = " " * (column_widths[i] - visible_len)
+                padded.append(cell_str + padding)
+            return "  ".join(padded).rstrip()
+
+        lines.append(prefix + format_row(headers))
+
+        separator = "  ".join("─" * w for w in column_widths)
+        lines.append(prefix + separator.rstrip())
+
+        for row in rows:
+            lines.append(prefix + format_row(row))
+
+        return lines
+
+    def table_info(
+                self,
+                headers: list[str],
+                rows: list[list[str]],
+                column_widths: list[int] | None = None
+            ) -> None:
+        '''Print a table with the given headers and rows.
+
+        Args:
+            headers (list[str]): The list of column headers.
+            rows (list[list[str]]): The list of rows, where each row is a list
+            of cell values.
+            column_widths (list[int] | None): Optional list of column widths.
+            If not provided, widths will be calculated based on content.
+        '''
+
+        table_lines = self._generate_table(headers, rows, column_widths)
+        for line in table_lines:
+            self.info(line)
