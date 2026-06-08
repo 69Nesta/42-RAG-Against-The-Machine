@@ -204,7 +204,10 @@ class Logger:
         result.append(title_line)
 
         for line in content:
-            result.append(f'│  {line} ' + f'{" " * (width - len(line) - 3)}│')
+            line_len: int = len(self._strip_ansi(line))
+            result.append(
+                f'│ {line} ' + f'{" " * (width - line_len - 2)}│'
+            )
         result.append(f'└{"─" * width}┘')
         return result
 
@@ -300,3 +303,23 @@ class Logger:
         table_lines = self._generate_table(headers, rows, column_widths)
         for line in table_lines:
             self.info(line)
+
+    def table_log(
+                self,
+                headers: list[str],
+                rows: list[list[str]],
+                column_widths: list[int] | None = None
+            ) -> None:
+        '''Print a table with the given headers and rows.
+
+        Args:
+            headers (list[str]): The list of column headers.
+            rows (list[list[str]]): The list of rows, where each row is a list
+            of cell values.
+            column_widths (list[int] | None): Optional list of column widths.
+            If not provided, widths will be calculated based on content.
+        '''
+
+        table_lines = self._generate_table(headers, rows, column_widths)
+        for line in table_lines:
+            self.log(line)

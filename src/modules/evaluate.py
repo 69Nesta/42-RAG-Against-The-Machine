@@ -93,7 +93,7 @@ class EvaluateModule:
 
         return self.overlap_ratio(doc, origin) >= 0.05
 
-    def evaluate_recall(
+    def evaluate_search_recall_k(
                 self,
                 origins: list[MinimalSource],
                 docs: list[MinimalSource],
@@ -110,39 +110,18 @@ class EvaluateModule:
 
         return founds / len(origins)
 
-    # @staticmethod
-    # def _doc_is_in_range(doc: MinimalSource, origin: MinimalSource) -> bool:
-    #     is_in_range: bool = all([
-    #         MathUtils.is_in_range(
-    #             doc.first_character_index,
-    #             origin.first_character_index,
-    #             5.0
-    #         ),
-    #         MathUtils.is_in_range(
-    #             doc.last_character_index,
-    #             origin.last_character_index,
-    #             5.0
-    #         )
-    #     ])
-    #     is_inside: bool = (
-    #         doc.first_character_index <= origin.first_character_index and
-    #         doc.last_character_index >= origin.last_character_index
-    #     )
-    #     return any([is_in_range, is_inside])
+    def evaluate_search_mrr(
+                self,
+                origins: list[MinimalSource],
+                docs: list[MinimalSource]
+            ) -> float:
 
-    # def _evaluate_sources(
-    #             self,
-    #             original_doc: MinimalSource,
-    #             student_docs: list[MinimalSource],
-    #             k: int
-    #         ) -> bool:
-    #     for doc in student_docs[:k]:
-    #         if Path(doc.file_path) != Path(original_doc.file_path):
-    #             continue
-    #         if self._doc_is_in_range(doc, original_doc):
-    #             return True
+        for origin in origins:
+            for idx, doc in enumerate(docs, start=1):
+                if self.doc_is_valid(doc, origin):
+                    return 1 / idx
 
-    #     return False
+        return 0.0
 
     def _evaluate(self) -> None:
         dataset: RagDataset = self.dataset_interface.load_dataset(
@@ -163,6 +142,8 @@ class EvaluateModule:
         unfound_questions: int = 0
         processed_questions: int = 0
         valid_questions: dict[int, float] = {}
+        total_mrr: float = .0
+
         recall_values = [1, 3, 5, 10]
 
         for question in dataset.rag_questions:
@@ -177,7 +158,7 @@ class EvaluateModule:
 
             processed_questions += 1
             for k in recall_values:
-                recall = self.evaluate_recall(
+                recall = self.evaluate_search_recall_k(
                     question.sources,
                     student_search_map[question.question_id].retrieved_sources,
                     k
@@ -186,8 +167,11 @@ class EvaluateModule:
                 valid_questions.update({
                     k: valid_questions.get(k, 0) + recall
                 })
+            total_mrr += self.evaluate_search_mrr(
+                question.sources,
+                student_search_map[question.question_id].retrieved_sources
+            )
 
-        # Log any data quality issues
         if invalid_questions > 0:
             self.logger.warning(
                 f'Found {invalid_questions} invalid questions in the dataset!'
@@ -198,8 +182,7 @@ class EvaluateModule:
                 'answers!'
             )
 
-        # Display evaluation results
-        self.logger.log('')
+        self.logger.info('')
         self.logger.box_info(
             [
                 f'Total questions: {total_questions}',
@@ -222,10 +205,19 @@ class EvaluateModule:
                 f'{recall_score:<6.3f}',
                 f'{recall_score * 100:.1f}%',
             ])
-
+        self.logger.info('')
         self.logger.table_info(
             headers=['Metric', 'Value', 'Percentage'],
             rows=metrics_rows
+        )
+        mrr: float = (
+            total_mrr / processed_questions if processed_questions > 0 else .0
+        )
+        self.logger.info('')
+        self.logger.box_info(
+            [f'MRR: {mrr:.3f}'],
+            'Mean Reciprocal Rank (MRR)',
+            30
         )
 
         self.logger.log('')

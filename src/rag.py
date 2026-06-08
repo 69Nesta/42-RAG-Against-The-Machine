@@ -5,7 +5,7 @@ from .interfaces import (
 )
 from .models import UnansweredQuestion
 from .utils import Logger, Color
-from .enums import IndexType
+from .enums import FileType
 from .config import Config
 
 from pydantic import ValidationError
@@ -89,7 +89,7 @@ class RAG:
                 self,
                 lib_path: str = 'data/raw/vllm-0.10.1',
                 maximum_chunk_size: int = 2000,
-                index_type: IndexType = IndexType.ALL,
+                index_type: FileType = FileType.ALL,
                 overlap: int = 5
             ) -> None:
         from .modules.indexer import IndexerModule
@@ -116,6 +116,7 @@ class RAG:
                 k: int = 5,
                 save_directory: str = 'data/output/search_results',
                 file_name: str = 'search_results.json',
+                search_type: FileType = FileType.ALL
             ) -> None:
         from .modules.search import SearchModule
 
@@ -123,6 +124,7 @@ class RAG:
             SearchModule(
                 k,
                 save_directory,
+                search_type,
                 self.chromadb_interface,
                 self.dataset_interface,
                 self.chunks_interface,
@@ -144,6 +146,7 @@ class RAG:
                 'data/datasets/UnansweredQuestions/dataset_docs_public.json',
                 k: int = 5,
                 save_directory: str = 'data/output/search_results',
+                search_type: FileType = FileType.ALL
             ) -> None:
         from .modules.search import SearchModule
 
@@ -151,6 +154,7 @@ class RAG:
             SearchModule(
                 k,
                 save_directory,
+                search_type,
                 self.chromadb_interface,
                 self.dataset_interface,
                 self.chunks_interface,
@@ -170,6 +174,7 @@ class RAG:
                 question: str,
                 k: int = 5,
                 save_directory: str = 'data/output/search_results_and_answer',
+                search_type: FileType = FileType.ALL
             ) -> None:
         from .modules.answer import AnswerModule
 
@@ -181,7 +186,12 @@ class RAG:
                 self.chunks_interface,
                 self.dspy_interface,
                 self.config
-            ).answer(question, k, self.bm25s_interface)
+            ).answer(
+                question,
+                k,
+                self.bm25s_interface,
+                search_type
+            )
         except ValidationError as e:
             self.logger.pydantic_error(e, 'Error while validating parameters:')
         except Exception as e:

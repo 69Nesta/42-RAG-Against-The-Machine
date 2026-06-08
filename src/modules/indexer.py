@@ -1,9 +1,7 @@
-import time
-
 from ..interfaces import ChromaDBInterface, ChunksInterface, Bm25sInterface
 from ..models import ChunkContentModel, MinimalSource
-from ..utils import Logger, Color
-from ..enums import IndexType
+from ..utils import Logger, Color, TimeUtils
+from ..enums import FileType
 from ..config import Config
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
@@ -16,7 +14,7 @@ from pathlib import Path
 class IndexerConfig(BaseModel):
     root_path: str
     maximum_chunk_size: int = Field(..., gt=0, le=2000)
-    index_type: IndexType
+    index_type: FileType
 
     overlap: int = Field(...,  gt=0, lt=100)
 
@@ -30,14 +28,14 @@ class IndexerModule:
 
     config: IndexerConfig
 
-    FILES_TYPES: dict[IndexType, set[str]] = {
-        IndexType.CODE: {'.py'},
-        IndexType.DOCS: {'.md', '.toml', '.txt'},
+    FILES_TYPES: dict[FileType, set[str]] = {
+        FileType.CODE: {'.py'},
+        FileType.DOCS: {'.md', '.toml', '.txt'},
     }
 
-    ALLOWED_FILES: dict[IndexType, set[str]] = {
-        IndexType.CODE: FILES_TYPES.get(IndexType.CODE, set()),
-        IndexType.DOCS: FILES_TYPES.get(IndexType.DOCS, set()),
+    ALLOWED_FILES: dict[FileType, set[str]] = {
+        FileType.CODE: FILES_TYPES.get(FileType.CODE, set()),
+        FileType.DOCS: FILES_TYPES.get(FileType.DOCS, set()),
     }
 
     files_path: list[Path]
@@ -49,7 +47,7 @@ class IndexerModule:
                 self,
                 root_path: str,
                 maximum_chunk_size: int,
-                index_type: IndexType,
+                index_type: FileType,
                 overlap: int,
                 chromadb_interface: ChromaDBInterface,
                 chunks_interface: ChunksInterface,
@@ -72,7 +70,7 @@ class IndexerModule:
         )
 
     def index(self) -> None:
-        start_time: float = time.time()
+        start_time: TimeUtils = TimeUtils()
 
         self._explore()
         self._initalize_splitters()
@@ -80,7 +78,7 @@ class IndexerModule:
         self._index_files()
 
         self.logger.info(
-            f'Indexing completed in {time.time() - start_time:.2f} seconds !'
+            f'Indexing completed in {start_time.get_elapsed_time_formated()} !'
         )
 
     def _explore(self) -> None:
@@ -198,9 +196,15 @@ class IndexerModule:
                     .replace('_', ' ')\
                     .replace('-', ' ')
 
-                bms25_txt = (
-                    f'{chunk.page_content} {file_path_str * 10} '
-                    f'{file_path_formatted * 10}'
+                contend_cleaned: str = chunk.page_content.lower()\
+                    .replace('_', ' ')\
+                    .replace('-', ' ')
+
+                bms25_txt: str = (
+                    f'{file_path_str} '
+                    f'{file_path_formatted * 7}\n\n'
+                    f'{chunk.page_content}\n\n'
+                    f'{contend_cleaned}'
                 )
                 corpus.append(bms25_txt)
             self.logger.log_tqdm(

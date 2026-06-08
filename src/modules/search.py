@@ -11,18 +11,19 @@ from ..interfaces import (
     Bm25sInterface,
     DspyInterface
 )
-from ..utils import Logger, Color, JSONUtils
+from ..utils import Logger, Color, JSONUtils, TimeUtils
+from ..enums import FileType, FilesExt
 from ..config import Config
 
 from pydantic import BaseModel, Field, model_validator
 from pathlib import Path
 from tqdm import tqdm
-import time
 
 
 class SearchConfig(BaseModel):
     k: int = Field(..., gt=0, le=10)
     save_directory: str = Field(..., min_length=1)
+    search_type: FileType
 
     @model_validator(mode='after')
     def check_paths_differ(self) -> 'SearchConfig':
@@ -54,6 +55,7 @@ class SearchModule:
                 self,
                 k: int,
                 save_directory: str,
+                search_type: FileType,
                 chromadb_interface: ChromaDBInterface,
                 dataset_interface: DatasetInterface,
                 chunks_interface: ChunksInterface,
@@ -74,82 +76,10 @@ class SearchModule:
         self.config = SearchConfig(
             save_directory=Path(save_directory).as_posix(),
             k=k,
+            search_type=search_type
         )
 
         self.bm25s_interface.load()
-
-    def _get_document_from_expended_query(
-                self,
-                query: str,
-                k: int
-            ) -> list[tuple[list[str], float]]:
-        expended_query = self.dspy_interface.expand_query_predict(query=query)
-
-        self.logger.log_tqdm(
-            'Expanded query BM25 keywords: '
-            f'{expended_query.bm25_keywords!r}'
-        )
-
-        self.logger.log_tqdm(
-            'Expanded query semantic queries: '
-            f'{expended_query.semantic_queries!r}'
-        )
-
-        return [
-            (
-                self.bm25s_interface.retrieve(
-                    expended_query.bm25_keywords + [query],
-                    k
-                ),
-                self.app_config.rrf_weights_bm25_expanded
-            ),
-            (
-                self.chromadb_interface.search(
-                    expended_query.semantic_queries + [query],
-                    k
-                ),
-                self.app_config.rrf_weights_chroma_expanded
-            )
-        ]
-
-    def search_sources(
-                self,
-                question: UnansweredQuestion
-            ) -> list[MinimalSource]:
-        self.logger.log_tqdm(
-                f'Searching for question: {question.question!r}'
-        )
-        k_max: int = max(self.config.k * 10, 50)
-
-        raw_documents: list[tuple[list[str], float]] = [
-            (
-                self._get_bm25_results(question, self.config.k),
-                self.app_config.rrf_weights_bm25
-            ),
-            (
-                self._get_chromadb_results(question, k_max),
-                self.app_config.rrf_weights_chroma
-            )
-        ]
-
-        if self.app_config.use_query_expansion:
-            raw_documents += self._get_document_from_expended_query(
-                question.question,
-                min(3, self.config.k)
-            )
-
-        fused_ids: list[str] = self._reciprocal_rank_fusion(
-            raw_documents,
-            self.config.k
-        )
-
-        documents: list[MinimalSource] = []
-        for doc_id in fused_ids:
-            metadata = self.chunks_interface.get_metadata_by_id(doc_id)
-            if metadata is not None:
-                documents.append(metadata)
-
-        return documents
 
     def print_retrieved_sources(
                 self,
@@ -171,6 +101,37 @@ class SearchModule:
             ]
         )
         self.logger.info('')
+
+    def search_sources(
+                self,
+                query: UnansweredQuestion
+            ) -> list[MinimalSource]:
+        fake_k: int = max(self.config.k * 10, 50)
+        documents_weights: list[tuple[list[MinimalSource], float]] = []
+
+        documents_weights.append((
+            self._transform_to_sources(
+                self.bm25s_interface.retrieve([query.question], fake_k)
+            ),
+            self.app_config.rrf_weights_bm25
+        ))
+
+        if self.app_config.use_chroma:
+            documents_weights.append((
+                self._transform_to_sources(
+                    self.chromadb_interface.search([query.question], fake_k)
+                ),
+                self.app_config.rrf_weights_chroma
+            ))
+
+        if self.app_config.use_query_expansion:
+            self._add_expanded_sources(
+                self.config.k,
+                query.question,
+                documents_weights
+            )
+
+        return self._apply_rrf(documents_weights, self.config.k)
 
     def search(self, question: UnansweredQuestion, file: str) -> None:
         self.logger.log('Starting search...')
@@ -195,7 +156,7 @@ class SearchModule:
         )
 
     def search_dataset(self, dataset_path: str) -> None:
-        start_time: float = time.time()
+        start_time: TimeUtils = TimeUtils()
         path: Path = Path(dataset_path)
         if not path.exists() or not path.is_file():
             self.logger.error(f'Dataset file {dataset_path!r} does not exist!')
@@ -216,6 +177,24 @@ class SearchModule:
                     retrieved_sources=self.search_sources(question)
                 )
             )
+            if self.app_config.verbose:
+                self.logger.table_log(
+                    headers=['#', 'File Path', 'Character Range'],
+                    rows=[
+                        [
+                            f'{Color.YELLOW}{idx:<4}{Color.RESET}',
+                            (str(source.file_path)
+                             if len(str(source.file_path)) <= 63
+                             else '…' + str(source.file_path)[-62:]),
+                            f'{Color.WHITE}{source.first_character_index:<4} –'
+                            f' {source.last_character_index:<4}{Color.RESET}'
+                        ]
+                        for idx, source in enumerate(
+                            minimal_search_results[-1].retrieved_sources,
+                            start=1
+                        )
+                    ]
+                )
 
         self._save(
             StudentSearchResults(
@@ -227,37 +206,72 @@ class SearchModule:
 
         self.logger.info(
             f' Processed {len(dataset.rag_questions)} '
-            f'questions in {time.time() - start_time:.2f}s !'
+            f'questions in {start_time.get_elapsed_time_formated()} !'
         )
 
-    def _get_bm25_results(
+    def _transform_to_sources(
                 self,
-                question: UnansweredQuestion,
-                k: int
-            ) -> list[str]:
-        return self.bm25s_interface.retrieve(
-            queries=[question.question],
-            k=k
+                documents: list[str]
+            ) -> list[MinimalSource]:
+        return [
+            self.chunks_interface.get_metadata_by_id(doc_id)
+            for doc_id in documents
+        ]
+
+    def _filter_sources(
+                self,
+                sources: list[MinimalSource]
+            ) -> list[MinimalSource]:
+        return [
+            source
+            for source in sources
+            if Path(source.file_path).suffix in FilesExt[
+                self.config.search_type
+            ]
+        ]
+
+    def _add_expanded_sources(
+                self,
+                k: int,
+                query: str,
+                documents_weights: list[tuple[list[MinimalSource], float]],
+            ) -> None:
+        expended_query = self.dspy_interface.expand_query_predict(query=query)
+
+        self.logger.log_tqdm(
+            'Expanded query BM25 keywords: '
+            f'{expended_query.bm25_keywords!r}'
         )
 
-    def _get_chromadb_results(
-                self,
-                question: UnansweredQuestion,
-                k: int
-            ) -> list[str]:
-        return self.chromadb_interface.search(
-            queries=[question.question],
-            k=k
+        self.logger.log_tqdm(
+            'Expanded query semantic queries: '
+            f'{expended_query.semantic_queries!r}'
         )
 
-    def _reciprocal_rank_fusion(
+        documents_weights.append((
+            self._transform_to_sources(self.bm25s_interface.retrieve(
+                [query] + expended_query.bm25_keywords,
+                k
+            )),
+            self.app_config.rrf_weights_bm25_expanded
+        ))
+        if self.app_config.use_chroma:
+            documents_weights.append((
+                self._transform_to_sources(self.chromadb_interface.search(
+                    [query] + expended_query.bm25_keywords,
+                    k
+                )),
+                self.app_config.rrf_weights_bm25_expanded
+            ))
+
+    def _apply_rrf(
                 self,
-                documents: list[tuple[list[str], float]],
+                documents: list[tuple[list[MinimalSource], float]],
                 k: int
-            ) -> list[str]:
-        scores: dict[str, float] = {}
+            ) -> list[MinimalSource]:
+        scores: dict[MinimalSource, float] = {}
         for docs, weight in documents:
-            for rank, doc_id in enumerate(docs):
+            for rank, doc_id in enumerate(self._filter_sources(docs)):
                 score: float = weight * (1.0 / (k + rank + 1))
                 scores[doc_id] = scores.get(doc_id, 0.0) + score
 
