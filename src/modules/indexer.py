@@ -199,8 +199,8 @@ class IndexerModule:
                     .replace('-', ' ')
 
                 bms25_txt = (
-                    f'{chunk.page_content} {file_path_str*10} '
-                    f'{file_path_formatted}'
+                    f'{chunk.page_content} {file_path_str * 10} '
+                    f'{file_path_formatted * 10}'
                 )
                 corpus.append(bms25_txt)
             self.logger.log_tqdm(

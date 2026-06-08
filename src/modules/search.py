@@ -85,17 +85,27 @@ class SearchModule:
             ) -> list[tuple[list[str], float]]:
         expended_query = self.dspy_interface.expand_query_predict(query=query)
 
+        self.logger.log_tqdm(
+            'Expanded query BM25 keywords: '
+            f'{expended_query.bm25_keywords!r}'
+        )
+
+        self.logger.log_tqdm(
+            'Expanded query semantic queries: '
+            f'{expended_query.semantic_queries!r}'
+        )
+
         return [
             (
                 self.bm25s_interface.retrieve(
-                    expended_query.bm25_keywords,
+                    expended_query.bm25_keywords + [query],
                     k
                 ),
                 self.app_config.rrf_weights_bm25_expanded
             ),
             (
                 self.chromadb_interface.search(
-                    expended_query.semantic_queries,
+                    expended_query.semantic_queries + [query],
                     k
                 ),
                 self.app_config.rrf_weights_chroma_expanded
