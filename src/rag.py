@@ -44,9 +44,9 @@ class RAG:
         processed_bm25_index_path: str = 'data/processed/bm25_index',
         processed_chunks_path: str = 'data/processed/chunks/contents.json',
 
-        rrf_weights_bm25: float = 1.15,
-        rrf_weights_chroma: float = .85,
-        rrf_weights_bm25_expanded: float = 0.5,
+        rrf_weights_bm25: float = 1.2,
+        rrf_weights_chroma: float = 1.0,
+        rrf_weights_bm25_expanded: float = 0.3,
         rrf_weights_chroma_expanded: float = 0.5,
     ) -> None:
         self.logger = Logger('RAG', Color.MAGENTA, verbose)
@@ -104,7 +104,7 @@ class RAG:
                 self.chunks_interface,
                 self.bm25s_interface,
                 self.config,
-            )
+            ).index()
         except ValidationError as e:
             self.logger.pydantic_error(e, 'Error while validating parameters:')
         except Exception as e:
