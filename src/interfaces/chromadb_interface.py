@@ -24,7 +24,7 @@ class ChromaDBInterface:
             ) -> None:
         self.config = config
 
-        self.enabled = config.use_chroma
+        self.enabled = config.use_chroma or config.use_hyde
         self.client_path = config.chromadb_path
         self.collection_name = config.chromadb_collection_name
 
@@ -44,6 +44,9 @@ class ChromaDBInterface:
         self.client = PersistentClient(
             path=self.client_path
         )
+        self._initialize_collection()
+
+    def _initialize_collection(self) -> None:
         self.collection = self.client.get_or_create_collection(
             name=self.collection_name
         )
@@ -102,3 +105,10 @@ class ChromaDBInterface:
             return []
 
         return ids[0]
+
+    def clear(self) -> None:
+        if not self.config.use_chroma:
+            return
+
+        self.client.delete_collection(self.config.chromadb_collection_name)
+        self._initialize_collection()

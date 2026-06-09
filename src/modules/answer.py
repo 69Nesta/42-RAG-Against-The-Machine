@@ -109,7 +109,7 @@ class AnswerModule:
                 question_str: str,
                 k: int,
                 bm25s_interface: Bm25sInterface,
-                search_type: FileType
+                search_type: FileType,
             ) -> None:
         from ..modules.search import SearchModule
 

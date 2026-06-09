@@ -2,6 +2,7 @@ from ..utils import Logger, Color
 from ..config import Config
 
 import bm25s
+import os
 
 
 class Bm25sInterface:
@@ -30,18 +31,14 @@ class Bm25sInterface:
         return self._retriever
 
     def index(self, corpus: list[str]) -> None:
-        tokens = bm25s.tokenize(
-            corpus,
-            # stopwords=self.app_config.bm25_stopwords,
-            # stemmer=self.app_config.bm25_stemmer,
-        )
+        tokens = bm25s.tokenize(corpus)
         self.retriever.index(tokens)
         self._is_indexed = True
         self.logger.log(f'BM25 index built ({len(corpus)} docs)')
 
     def save(self) -> None:
         self._assert_indexed()
-        path = self.app_config.processed_bm25_index_path
+        path: str = self.app_config.processed_bm25_index_path
         self.logger.log(f'Saving BM25 index to {path!r}...')
         self.retriever.save(path)
 
@@ -56,14 +53,19 @@ class Bm25sInterface:
 
     def retrieve(self, queries: list[str], k: int) -> list[str]:
         self._assert_indexed()
-        tokens = bm25s.tokenize(
-            queries,
-            # stopwords=self.app_config.bm25_stopwords,
-            # stemmer=self.app_config.bm25_stemmer,
-        )
+        tokens = bm25s.tokenize(queries)
         results, _ = self.retriever.retrieve(tokens, k=k)
         return results[0].tolist()
 
     def _assert_indexed(self) -> None:
         if not self._is_indexed:
             raise RuntimeError('BM25 retriever is not indexed yet')
+
+    def clear(self) -> None:
+        try:
+            os.remove(self.app_config.processed_bm25_index_path)
+        except Exception:
+            pass
+
+        self._retriever = None
+        self._is_indexed = False

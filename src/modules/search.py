@@ -76,7 +76,7 @@ class SearchModule:
         self.config = SearchConfig(
             save_directory=Path(save_directory).as_posix(),
             k=k,
-            search_type=search_type
+            search_type=search_type,
         )
 
         self.bm25s_interface.load()
@@ -106,7 +106,7 @@ class SearchModule:
                 self,
                 query: UnansweredQuestion
             ) -> list[MinimalSource]:
-        fake_k: int = max(self.config.k * 10, 50)
+        fake_k: int = max(self.config.k * 20, 150)
         documents_weights: list[tuple[list[MinimalSource], float]] = []
 
         documents_weights.append((
@@ -126,10 +126,13 @@ class SearchModule:
 
         if self.app_config.use_query_expansion:
             self._add_expanded_sources(
-                self.config.k,
+                fake_k,
                 query.question,
                 documents_weights
             )
+
+        if self.app_config.use_hyde:
+            self._add_HyDE(fake_k, query.question, documents_weights)
 
         return self._apply_rrf(documents_weights, self.config.k)
 
@@ -237,6 +240,7 @@ class SearchModule:
                 documents_weights: list[tuple[list[MinimalSource], float]],
             ) -> None:
         expended_query = self.dspy_interface.expand_query_predict(query=query)
+        # multi_query = self.dspy_interface.multi_query_predict(question=query)
 
         self.logger.log_tqdm(
             'Expanded query BM25 keywords: '
@@ -250,7 +254,7 @@ class SearchModule:
 
         documents_weights.append((
             self._transform_to_sources(self.bm25s_interface.retrieve(
-                [query] + expended_query.bm25_keywords,
+                expended_query.bm25_keywords,
                 k
             )),
             self.app_config.rrf_weights_bm25_expanded
@@ -258,11 +262,27 @@ class SearchModule:
         if self.app_config.use_chroma:
             documents_weights.append((
                 self._transform_to_sources(self.chromadb_interface.search(
-                    [query] + expended_query.bm25_keywords,
+                    expended_query.semantic_queries,
                     k
                 )),
-                self.app_config.rrf_weights_bm25_expanded
+                self.app_config.rrf_weights_chroma_expanded
             ))
+
+    def _add_HyDE(
+                self,
+                k: int,
+                query: str,
+                documents_weights: list[tuple[list[MinimalSource], float]],
+            ) -> None:
+        hyde = self.dspy_interface.hyde_predict(question=query)
+
+        documents_weights.append((
+            self._transform_to_sources(self.chromadb_interface.search(
+                hyde.hypothetical_passage,
+                k
+            )),
+            self.app_config.rrf_weights_HyDE
+        ))
 
     def _apply_rrf(
                 self,

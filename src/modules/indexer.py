@@ -5,15 +5,16 @@ from ..enums import FileType
 from ..config import Config
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
-from tqdm import tqdm
 from langchain_core.documents import Document
 from pydantic import BaseModel, Field
 from pathlib import Path
+from tqdm import tqdm
+import re
 
 
 class IndexerConfig(BaseModel):
     root_path: str
-    maximum_chunk_size: int = Field(..., gt=0, le=2000)
+    maximum_chunk_size: int = Field(..., gt=0)
     index_type: FileType
 
     overlap: int = Field(...,  gt=0, lt=100)
@@ -30,7 +31,7 @@ class IndexerModule:
 
     FILES_TYPES: dict[FileType, set[str]] = {
         FileType.CODE: {'.py'},
-        FileType.DOCS: {'.md', '.toml', '.txt'},
+        FileType.DOCS: {'.md', '.txt'},
     }
 
     ALLOWED_FILES: dict[FileType, set[str]] = {
@@ -71,6 +72,9 @@ class IndexerModule:
 
     def index(self) -> None:
         start_time: TimeUtils = TimeUtils()
+
+        self.bm25s_interface.clear()
+        self.chromadb_interface.clear()
 
         self._explore()
         self._initalize_splitters()
@@ -194,17 +198,18 @@ class IndexerModule:
                     .replace('\\', ' ')\
                     .replace('.', ' ')\
                     .replace('_', ' ')\
-                    .replace('-', ' ')
+                    # .replace('-', ' ')
 
-                contend_cleaned: str = chunk.page_content.lower()\
-                    .replace('_', ' ')\
-                    .replace('-', ' ')
+                contend_cleaned: str = re.sub(
+                    r'([a-z])([A-Z])', r'\1 \2',
+                    chunk.page_content.replace('_', ' ').replace('-', ' ')
+                )
 
                 bms25_txt: str = (
-                    f'{file_path_str} '
-                    f'{file_path_formatted * 7}\n\n'
-                    f'{chunk.page_content}\n\n'
-                    f'{contend_cleaned}'
+                    f'{" ".join([file_path_str] * 3)}\n'
+                    f'{" ".join([file_path_formatted] * 5)}\n\n'
+                    f'{contend_cleaned}\n\n'
+                    f'{chunk.page_content}'
                 )
                 corpus.append(bms25_txt)
             self.logger.log_tqdm(

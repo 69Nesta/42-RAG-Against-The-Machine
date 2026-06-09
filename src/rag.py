@@ -27,27 +27,30 @@ class RAG:
         model_name: str = 'openai/qwen3:0.6b',
         # model_name: str = 'openai/Qwen/Qwen3-0.6B',
         temperature: float = 0.1,
-        api_base: str = 'http://localhost:11434/v1',
+        api_base: str = 'http://87.89.130.95:11434/v1',
         api_key: str = 'EMPTY',
         max_tokens: int = 102400,
         dspy_cache: bool = True,
 
         use_query_expansion: bool = False,
+        use_hyde: bool = False,
 
         use_chroma: bool = True,
         chromadb_collection_name: str = 'chunks',
         chromadb_path: str = 'data/processed/chunks/chromadb',
 
-        bm25_k1: float = 1.7,
-        bm25_b: float = 0.5,
+        bm25_k1: float = 2.0,
+        bm25_b: float = 0.75,
 
         processed_bm25_index_path: str = 'data/processed/bm25_index',
         processed_chunks_path: str = 'data/processed/chunks/contents.json',
 
         rrf_weights_bm25: float = 1.2,
         rrf_weights_chroma: float = 1.0,
-        rrf_weights_bm25_expanded: float = 0.3,
-        rrf_weights_chroma_expanded: float = 0.5,
+        rrf_weights_bm25_expanded: float = .3,
+        rrf_weights_chroma_expanded: float = .5,
+        rrf_weights_HyDE: float = .7
+
     ) -> None:
         self.logger = Logger('RAG', Color.MAGENTA, verbose)
         self.logger.log('Initializing RAG...')
@@ -62,6 +65,7 @@ class RAG:
             dspy_cache=dspy_cache,
 
             use_query_expansion=use_query_expansion,
+            use_hyde=use_hyde,
 
             use_chroma=use_chroma,
             chromadb_path=chromadb_path,
@@ -77,6 +81,7 @@ class RAG:
             rrf_weights_chroma=rrf_weights_chroma,
             rrf_weights_bm25_expanded=rrf_weights_bm25_expanded,
             rrf_weights_chroma_expanded=rrf_weights_chroma_expanded,
+            rrf_weights_HyDE=rrf_weights_HyDE
         )
 
         self.chromadb_interface = ChromaDBInterface(config=self.config)
@@ -116,7 +121,7 @@ class RAG:
                 k: int = 5,
                 save_directory: str = 'data/output/search_results',
                 file_name: str = 'search_results.json',
-                search_type: FileType = FileType.ALL
+                search_type: FileType = FileType.ALL,
             ) -> None:
         from .modules.search import SearchModule
 
@@ -146,7 +151,7 @@ class RAG:
                 'data/datasets/UnansweredQuestions/dataset_docs_public.json',
                 k: int = 5,
                 save_directory: str = 'data/output/search_results',
-                search_type: FileType = FileType.ALL
+                search_type: FileType = FileType.ALL,
             ) -> None:
         from .modules.search import SearchModule
 
@@ -174,7 +179,7 @@ class RAG:
                 question: str,
                 k: int = 5,
                 save_directory: str = 'data/output/search_results_and_answer',
-                search_type: FileType = FileType.ALL
+                search_type: FileType = FileType.ALL,
             ) -> None:
         from .modules.answer import AnswerModule
 
@@ -190,7 +195,7 @@ class RAG:
                 question,
                 k,
                 self.bm25s_interface,
-                search_type
+                search_type,
             )
         except ValidationError as e:
             self.logger.pydantic_error(e, 'Error while validating parameters:')
