@@ -16,9 +16,13 @@ class AnswerSignature(dspy.Signature):
     answer: str = dspy.OutputField(
         description=(
             'Answer the question in 1-3 sentences based only on the provided '
-            'documents. At the end, include the sources path used in the '
-            'format \'Sources: <path_source1>, <path_source2>, ...\'. '
-            'Do not use Markdown.'
+            'documents. Do not use Markdown.'
+        )
+    )
+    sources: list[str] = dspy.OutputField(
+        description=(
+            'List of source identifiers from the provided documents that were '
+            'used to generate the answer.'
         )
     )
 
