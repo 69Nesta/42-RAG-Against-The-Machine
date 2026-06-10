@@ -27,9 +27,13 @@ class JSONUtils:
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
+        except FileNotFoundError:
+            raise FileNotFoundError(f'File {file_path!r} not found!')
+        except json.JSONDecodeError as e:
+            raise ValueError(f'Error decoding JSON from {file_path!r}: {e}')
         except Exception as e:
             raise ValueError(
-                f'Error occurred while loading JSON from {file_path}: {e}'
+                f'Error occurred while loading JSON from {file_path!r}: {e}'
             )
 
     @staticmethod
@@ -37,8 +41,13 @@ class JSONUtils:
         try:
             with open(file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
+        except FileNotFoundError:
+            raise FileNotFoundError(f'File {file!r} not found!')
+        except json.JSONDecodeError as e:
+            raise ValueError(f'Error decoding JSON from {file!r}: {e}')
         except Exception as e:
             raise ValueError(
-                f'Error occurred while loading JSON to model from {file}: {e}'
+                f'Error occurred while loading JSON to model from {file!r}: '
+                f'{e}'
             )
         return model_class.model_validate(data)

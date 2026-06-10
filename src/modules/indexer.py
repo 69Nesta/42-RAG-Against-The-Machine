@@ -1,22 +1,21 @@
-import time
-
 from ..interfaces import ChromaDBInterface, ChunksInterface, Bm25sInterface
 from ..models import ChunkContentModel, MinimalSource
-from ..utils import Logger, Color
-from ..enums import IndexType
+from ..utils import Logger, Color, TimeUtils
+from ..enums import FileType
 from ..config import Config
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
-from tqdm import tqdm
 from langchain_core.documents import Document
 from pydantic import BaseModel, Field
 from pathlib import Path
+from tqdm import tqdm
+import re
 
 
 class IndexerConfig(BaseModel):
     root_path: str
     maximum_chunk_size: int = Field(..., gt=0, le=2000)
-    index_type: IndexType
+    index_type: FileType
 
     overlap: int = Field(...,  gt=0, lt=100)
 
@@ -30,14 +29,14 @@ class IndexerModule:
 
     config: IndexerConfig
 
-    FILES_TYPES: dict[IndexType, set[str]] = {
-        IndexType.CODE: {'.py'},
-        IndexType.DOCS: {'.md', '.toml', '.txt'},
+    FILES_TYPES: dict[FileType, set[str]] = {
+        FileType.CODE: {'.py'},
+        FileType.DOCS: {'.md', '.txt'},
     }
 
-    ALLOWED_FILES: dict[IndexType, set[str]] = {
-        IndexType.CODE: FILES_TYPES.get(IndexType.CODE, set()),
-        IndexType.DOCS: FILES_TYPES.get(IndexType.DOCS, set()),
+    ALLOWED_FILES: dict[FileType, set[str]] = {
+        FileType.CODE: FILES_TYPES.get(FileType.CODE, set()),
+        FileType.DOCS: FILES_TYPES.get(FileType.DOCS, set()),
     }
 
     files_path: list[Path]
@@ -49,7 +48,7 @@ class IndexerModule:
                 self,
                 root_path: str,
                 maximum_chunk_size: int,
-                index_type: IndexType,
+                index_type: FileType,
                 overlap: int,
                 chromadb_interface: ChromaDBInterface,
                 chunks_interface: ChunksInterface,
@@ -72,7 +71,10 @@ class IndexerModule:
         )
 
     def index(self) -> None:
-        start_time: float = time.time()
+        start_time: TimeUtils = TimeUtils()
+
+        self.bm25s_interface.clear()
+        self.chromadb_interface.clear()
 
         self._explore()
         self._initalize_splitters()
@@ -80,7 +82,7 @@ class IndexerModule:
         self._index_files()
 
         self.logger.info(
-            f'Indexing completed in {time.time() - start_time:.2f} seconds !'
+            f'Indexing completed in {start_time.get_elapsed_time_formated()} !'
         )
 
     def _explore(self) -> None:
@@ -129,7 +131,15 @@ class IndexerModule:
         )
 
     def _index_files(self) -> None:
-        self.logger.log('Indexing code files...')
+        if not self.files_path:
+            self.logger.warning(
+                'No files found to index. Please check the root path and '
+                'file types.'
+            )
+            return
+
+        self.logger.log('Indexing files...')
+
         ids: list[str] = []
         corpus: list[str] = []
         corpus_metadata: dict[int, dict[str, str | int]] = {}
@@ -196,11 +206,18 @@ class IndexerModule:
                     .replace('\\', ' ')\
                     .replace('.', ' ')\
                     .replace('_', ' ')\
-                    .replace('-', ' ')
+                    # .replace('-', ' ')
 
-                bms25_txt = (
-                    f'{chunk.page_content} {file_path_str*10} '
-                    f'{file_path_formatted}'
+                contend_cleaned: str = re.sub(
+                    r'([a-z])([A-Z])', r'\1 \2',
+                    chunk.page_content.replace('_', ' ').replace('-', ' ')
+                )
+
+                bms25_txt: str = (
+                    f'{" ".join([file_path_str] * 3)}\n'
+                    f'{" ".join([file_path_formatted] * 5)}\n\n'
+                    f'{contend_cleaned}\n\n'
+                    f'{chunk.page_content}'
                 )
                 corpus.append(bms25_txt)
             self.logger.log_tqdm(

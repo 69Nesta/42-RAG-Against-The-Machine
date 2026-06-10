@@ -1,6 +1,8 @@
+
 from ..models import (
     StudentSearchResultsAndAnswer,
     UnansweredQuestion,
+    ChunkContentModel,
     AnsweredQuestion,
     MinimalAnswer,
     MinimalSource
@@ -13,13 +15,13 @@ from ..interfaces import (
     Bm25sInterface,
     DspyInterface,
 )
-from ..utils import Logger, Color, JSONUtils
+from ..utils import Logger, Color, JSONUtils, TimeUtils
+from ..enums import FileType
 from ..config import Config
 
 from pydantic import BaseModel, Field, model_validator
 from pathlib import Path
 from tqdm import tqdm
-import time
 
 
 class AnswerConfig(BaseModel):
@@ -75,7 +77,10 @@ class AnswerModule:
             save_directory=Path(save_directory).as_posix(),
         )
 
-        # self.dspy_interface = DspyInterface(config)
+    def _answer_pipeline(self, answer: str) -> str:
+        return answer\
+            .replace('[[ ## completed ## ]]', '')\
+            .strip()
 
     def _answer(
                 self,
@@ -84,8 +89,8 @@ class AnswerModule:
             ) -> AnsweredQuestion:
         self.logger.log_tqdm(f'Answering question: {question.question!r}...')
 
-        documents: list[str] = [
-            self.chunks_interface.get_chunk_by_metadata(source).content
+        documents: list[ChunkContentModel] = [
+            self.chunks_interface.get_chunk_by_metadata(source)
             for source in sources
         ]
 
@@ -94,11 +99,13 @@ class AnswerModule:
             question=question.question,
         )
 
+        answer_str: str = self._answer_pipeline(dspy_answer.answer)
+
         answer = AnsweredQuestion(
             question_id=question.question_id,
             question=question.question,
             sources=sources,
-            answer=dspy_answer.answer,
+            answer=answer_str,
         )
 
         return answer
@@ -108,6 +115,7 @@ class AnswerModule:
                 question_str: str,
                 k: int,
                 bm25s_interface: Bm25sInterface,
+                search_type: FileType,
             ) -> None:
         from ..modules.search import SearchModule
 
@@ -125,6 +133,7 @@ class AnswerModule:
         search_module: SearchModule = SearchModule(
             k,
             save_directory=self.config.save_directory,
+            search_type=search_type,
             chromadb_interface=self.chromadb_interface,
             dataset_interface=self.dataset_interface,
             chunks_interface=self.chunks_interface,
@@ -170,11 +179,18 @@ class AnswerModule:
         )
 
     def answer_dataset(self, student_search_results_path: str) -> None:
-        start_time: float = time.time()
+        start_time: TimeUtils = TimeUtils()
         self.search_results_interface = SearchResultsInterface(self.app_config)
-        loaded_results = self.search_results_interface.get_search_results(
-            student_search_results_path
-        )
+        try:
+            loaded_results = self.search_results_interface.get_search_results(
+                student_search_results_path
+            )
+        except Exception:
+            self.logger.error(
+                f'Error while loading search results from '
+                f'{student_search_results_path!r} !'
+            )
+            return
 
         self.logger.info(
             f'Loaded {len(loaded_results.search_results)} '
@@ -215,7 +231,7 @@ class AnswerModule:
 
         self.logger.info(
             f'Answered {len(answers.search_results)} questions in '
-            f'{time.time() - start_time:.2f}s !'
+            f'{start_time.get_elapsed_time_formated()} !'
         )
 
     def _save(self, answers: StudentSearchResultsAndAnswer, file: str) -> None:

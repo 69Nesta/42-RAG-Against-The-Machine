@@ -13,6 +13,7 @@ class Config(BaseModel):
     dspy_cache: bool
 
     use_query_expansion: bool
+    use_hyde: bool
 
     use_chroma: bool
     chromadb_path: str
@@ -29,6 +30,7 @@ class Config(BaseModel):
 
     rrf_weights_bm25_expanded: float
     rrf_weights_chroma_expanded: float
+    rrf_weights_HyDE: float
 
     @model_validator(mode='after')
     def check_paths_differ(self) -> 'Config':

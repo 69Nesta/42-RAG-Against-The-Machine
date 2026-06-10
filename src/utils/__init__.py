@@ -1,12 +1,12 @@
 from .json_utils import JSONUtils
-from .math_utils import MathUtils
+from .time_utils import TimeUtils
 from .logger import Logger
 from .color import Color
 
 
 __all__: list[str] = [
     'JSONUtils',
-    'MathUtils',
+    'TimeUtils',
     'Logger',
     'Color',
 ]

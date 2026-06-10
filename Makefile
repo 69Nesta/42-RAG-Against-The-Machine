@@ -33,7 +33,4 @@ lint-strict:
 	$(UV_PY) flake8 $(SRCS_DIR)
 	$(UV_PY) mypy $(SRCS_DIR) --strict
 
-# install-vllm-goinfre:
-# 	
-
 .PHONY: install run debug clean fclean lint lint-strict
