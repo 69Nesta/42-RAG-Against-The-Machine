@@ -2,6 +2,7 @@
 from ..models import (
     StudentSearchResultsAndAnswer,
     UnansweredQuestion,
+    ChunkContentModel,
     AnsweredQuestion,
     MinimalAnswer,
     MinimalSource
@@ -76,7 +77,10 @@ class AnswerModule:
             save_directory=Path(save_directory).as_posix(),
         )
 
-        # self.dspy_interface = DspyInterface(config)
+    def _answer_pipeline(self, answer: str) -> str:
+        return answer\
+            .replace('[[ ## completed ## ]]', '')\
+            .strip()
 
     def _answer(
                 self,
@@ -85,8 +89,8 @@ class AnswerModule:
             ) -> AnsweredQuestion:
         self.logger.log_tqdm(f'Answering question: {question.question!r}...')
 
-        documents: list[str] = [
-            self.chunks_interface.get_chunk_by_metadata(source).content
+        documents: list[ChunkContentModel] = [
+            self.chunks_interface.get_chunk_by_metadata(source)
             for source in sources
         ]
 
@@ -95,11 +99,13 @@ class AnswerModule:
             question=question.question,
         )
 
+        answer_str: str = self._answer_pipeline(dspy_answer.answer)
+
         answer = AnsweredQuestion(
             question_id=question.question_id,
             question=question.question,
             sources=sources,
-            answer=dspy_answer.answer,
+            answer=answer_str,
         )
 
         return answer
@@ -175,9 +181,16 @@ class AnswerModule:
     def answer_dataset(self, student_search_results_path: str) -> None:
         start_time: TimeUtils = TimeUtils()
         self.search_results_interface = SearchResultsInterface(self.app_config)
-        loaded_results = self.search_results_interface.get_search_results(
-            student_search_results_path
-        )
+        try:
+            loaded_results = self.search_results_interface.get_search_results(
+                student_search_results_path
+            )
+        except Exception:
+            self.logger.error(
+                f'Error while loading search results from '
+                f'{student_search_results_path!r} !'
+            )
+            return
 
         self.logger.info(
             f'Loaded {len(loaded_results.search_results)} '

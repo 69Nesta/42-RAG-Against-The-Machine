@@ -33,10 +33,12 @@ class SearchResultsInterface:
         self.logger.log_tqdm(
             f'Cache miss for {file_path!r}. Loading from disk...'
         )
+
         search_results: StudentSearchResults = JSONUtils.load_json_to_model(
             file_path,
             StudentSearchResults
         )
+
         self._cache.update({
             file_path: search_results
         })

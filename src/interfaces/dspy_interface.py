@@ -1,42 +1,26 @@
+from ..models import ChunkContentModel
 from ..utils import Logger, Color
 from ..config import Config
+
 import dspy
 
 
 class AnswerSignature(dspy.Signature):
-    documents: list[str] = dspy.InputField(
+    documents: list[ChunkContentModel] = dspy.InputField(
         description='List of retrieved documents relevant to the question.'
     )
     question: str = dspy.InputField(
-        description='The question to be answered based on the retrieved'
-        ' documents.'
+        description='The question to be answered based on the retrieved '
+        'documents.'
     )
     answer: str = dspy.OutputField(
-        description='Answer a little sentence based on documents. Don\'t write'
-        ' Markdown, just the answer.'
+        description=(
+            'Answer the question in 1-3 sentences based only on the provided '
+            'documents. At the end, include the sources path used in the '
+            'format \'Sources: <path_source1>, <path_source2>, ...\'. '
+            'Do not use Markdown.'
+        )
     )
-
-
-# class ExpandQuery(dspy.Signature):
-#     '''
-#     Expands a user query into lexical and semantic forms for hybrid
-# retrieval.
-#     '''
-
-#     query: str = dspy.InputField(
-#         description='Original user query'
-#     )
-
-#     bm25_keywords: list[str] = dspy.OutputField(
-#         description='Domain-specific terms semantically adjacent to
-# the query.'
-#         ' Focus on related concepts, component names, technical synonyms '
-#         'that are NOT already in the query.'
-#     )
-
-#     semantic_queries: list[str] = dspy.OutputField(
-#         description='1-2 paraphrases max, preserving all specific entities.'
-#     )
 
 
 class ExpandQuery(dspy.Signature):

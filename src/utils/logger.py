@@ -198,6 +198,8 @@ class Logger:
         '''
         if width is None:
             width = max(len(line) for line in content) + 4
+        if width < len(title) + 4:
+            width = len(title) + 4
 
         result: list[str] = []
         title_line = f'┌─ {title} ' + f'{"─" * (width - len(title) - 3)}┐'

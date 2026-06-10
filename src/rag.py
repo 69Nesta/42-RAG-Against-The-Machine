@@ -26,8 +26,8 @@ class RAG:
         verbose: bool = False,
         model_name: str = 'openai/qwen3:0.6b',
         # model_name: str = 'openai/Qwen/Qwen3-0.6B',
-        temperature: float = 0.1,
-        api_base: str = 'http://87.89.130.95:11434/v1',
+        temperature: float = 0.3,
+        api_base: str = 'http://localhost:11434/v1',
         api_key: str = 'EMPTY',
         max_tokens: int = 102400,
         dspy_cache: bool = True,
@@ -35,7 +35,7 @@ class RAG:
         use_query_expansion: bool = False,
         use_hyde: bool = False,
 
-        use_chroma: bool = True,
+        use_chroma: bool = False,
         chromadb_collection_name: str = 'chunks',
         chromadb_path: str = 'data/processed/chunks/chromadb',
 

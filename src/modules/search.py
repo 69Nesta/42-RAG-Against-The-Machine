@@ -106,6 +106,10 @@ class SearchModule:
                 self,
                 query: UnansweredQuestion
             ) -> list[MinimalSource]:
+
+        if not query.question.strip():
+            return []
+
         fake_k: int = max(self.config.k * 20, 150)
         documents_weights: list[tuple[list[MinimalSource], float]] = []
 
@@ -138,6 +142,24 @@ class SearchModule:
 
     def search(self, question: UnansweredQuestion, file: str) -> None:
         self.logger.log('Starting search...')
+
+        if not question.question.strip():
+            self.logger.warning(
+                'Empty question provided, skipping search and saving empty '
+                'results.'
+            )
+            self._save(
+                StudentSearchResults(
+                    search_results=[MinimalSearchResults(
+                        question_id=question.question_id,
+                        question=question.question,
+                        retrieved_sources=[]
+                    )],
+                    k=self.config.k
+                ),
+                file
+            )
+            return
 
         minimal_search_results: MinimalSearchResults = MinimalSearchResults(
             question_id=question.question_id,
@@ -240,7 +262,6 @@ class SearchModule:
                 documents_weights: list[tuple[list[MinimalSource], float]],
             ) -> None:
         expended_query = self.dspy_interface.expand_query_predict(query=query)
-        # multi_query = self.dspy_interface.multi_query_predict(question=query)
 
         self.logger.log_tqdm(
             'Expanded query BM25 keywords: '

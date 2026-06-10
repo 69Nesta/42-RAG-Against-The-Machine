@@ -14,7 +14,7 @@ import re
 
 class IndexerConfig(BaseModel):
     root_path: str
-    maximum_chunk_size: int = Field(..., gt=0)
+    maximum_chunk_size: int = Field(..., gt=0, le=2000)
     index_type: FileType
 
     overlap: int = Field(...,  gt=0, lt=100)
@@ -131,7 +131,15 @@ class IndexerModule:
         )
 
     def _index_files(self) -> None:
-        self.logger.log('Indexing code files...')
+        if not self.files_path:
+            self.logger.warning(
+                'No files found to index. Please check the root path and '
+                'file types.'
+            )
+            return
+
+        self.logger.log('Indexing files...')
+
         ids: list[str] = []
         corpus: list[str] = []
         corpus_metadata: dict[int, dict[str, str | int]] = {}
