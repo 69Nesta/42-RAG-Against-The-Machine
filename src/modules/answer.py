@@ -77,10 +77,36 @@ class AnswerModule:
             save_directory=Path(save_directory).as_posix(),
         )
 
-    def _answer_pipeline(self, answer: str) -> str:
-        return answer\
-            .replace('[[ ## completed ## ]]', '')\
+    def _answer_pipeline(self, answer: str, sources_ids: list[str]) -> str:
+        sources: list[ChunkContentModel] = []
+
+        for source_id in sources_ids:
+            try:
+                sources.append(
+                    self.chunks_interface.get_chunk_by_id(source_id)
+                )
+            except Exception:
+                pass
+
+        sources_paths: set[str] = set()
+
+        for source in sources:
+            sources_paths.add(source.metadata.file_path)
+
+        answer = (
+            answer
+            .replace('[[ ## completed ## ]]', '')
             .strip()
+        )
+
+        if sources_paths:
+            if answer and answer[-1] not in '.!?':
+                answer += '.'
+
+            answer += '\n\nSources:\n'
+            answer += '\n'.join(f'- {path!r}' for path in sources_paths)
+
+        return answer
 
     def _answer(
                 self,
@@ -99,7 +125,10 @@ class AnswerModule:
             question=question.question,
         )
 
-        answer_str: str = self._answer_pipeline(dspy_answer.answer)
+        answer_str: str = self._answer_pipeline(
+            dspy_answer.answer,
+            dspy_answer.sources
+        )
 
         answer = AnsweredQuestion(
             question_id=question.question_id,
@@ -141,9 +170,15 @@ class AnswerModule:
             dspy_interface=self.dspy_interface,
             config=self.app_config
         )
-        sources: list[MinimalSource] = search_module.search_sources(question)
+        sources: list[MinimalSource] = search_module.search_sources(
+            question,
+            print_expanded=True,
+            print_hyde=True
+        )
 
-        self.logger.log('')
+        self.logger.info('')
+        self.logger.info(f'{Color.BOLD}Retrieved Sources:{Color.RESET}')
+        self.logger.info('')
         self.logger.table_info(
             headers=['#', 'File', 'Char range'],
             rows=[

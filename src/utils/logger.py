@@ -196,8 +196,14 @@ class Logger:
         Returns:
             list[str]: A list of strings representing the lines of the box.
         '''
+        content_cleaned: list[str] = [
+            part
+            for item in content
+            for part in item.split('\n')
+        ]
+
         if width is None:
-            width = max(len(line) for line in content) + 4
+            width = max(len(line) for line in content_cleaned) + 4
         if width < len(title) + 4:
             width = len(title) + 4
 
@@ -205,7 +211,7 @@ class Logger:
         title_line = f'┌─ {title} ' + f'{"─" * (width - len(title) - 3)}┐'
         result.append(title_line)
 
-        for line in content:
+        for line in content_cleaned:
             line_len: int = len(self._strip_ansi(line))
             result.append(
                 f'│ {line} ' + f'{" " * (width - line_len - 2)}│'

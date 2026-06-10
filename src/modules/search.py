@@ -104,7 +104,9 @@ class SearchModule:
 
     def search_sources(
                 self,
-                query: UnansweredQuestion
+                query: UnansweredQuestion,
+                print_expanded: bool = False,
+                print_hyde: bool = False
             ) -> list[MinimalSource]:
 
         if not query.question.strip():
@@ -132,11 +134,17 @@ class SearchModule:
             self._add_expanded_sources(
                 fake_k,
                 query.question,
-                documents_weights
+                documents_weights,
+                print_expanded
             )
 
         if self.app_config.use_hyde:
-            self._add_HyDE(fake_k, query.question, documents_weights)
+            self._add_HyDE(
+                fake_k,
+                query.question,
+                documents_weights,
+                print_hyde
+            )
 
         return self._apply_rrf(documents_weights, self.config.k)
 
@@ -164,7 +172,11 @@ class SearchModule:
         minimal_search_results: MinimalSearchResults = MinimalSearchResults(
             question_id=question.question_id,
             question=question.question,
-            retrieved_sources=self.search_sources(question)
+            retrieved_sources=self.search_sources(
+                query=question,
+                print_expanded=True,
+                print_hyde=True
+            )
         )
 
         self.logger.log('')
@@ -260,18 +272,32 @@ class SearchModule:
                 k: int,
                 query: str,
                 documents_weights: list[tuple[list[MinimalSource], float]],
+                print_expanded: bool = False
             ) -> None:
         expended_query = self.dspy_interface.expand_query_predict(query=query)
 
-        self.logger.log_tqdm(
-            'Expanded query BM25 keywords: '
-            f'{expended_query.bm25_keywords!r}'
-        )
+        if not print_expanded:
+            self.logger.log_tqdm(
+                'Expanded query BM25 keywords: '
+                f'{expended_query.bm25_keywords!r}'
+            )
 
-        self.logger.log_tqdm(
-            'Expanded query semantic queries: '
-            f'{expended_query.semantic_queries!r}'
-        )
+            self.logger.log_tqdm(
+                'Expanded query semantic queries: '
+                f'{expended_query.semantic_queries!r}'
+            )
+
+        if print_expanded:
+            self.logger.info('')
+            self.logger.box_info(
+                [f'BM25 keywords: {expended_query.bm25_keywords!r}'],
+                'Expanded query BM25 keywords'
+            )
+            if self.app_config.use_chroma:
+                self.logger.box_info(
+                    [f'Semantic queries: {expended_query.semantic_queries!r}'],
+                    'Expanded query semantic queries'
+                )
 
         documents_weights.append((
             self._transform_to_sources(self.bm25s_interface.retrieve(
@@ -294,8 +320,21 @@ class SearchModule:
                 k: int,
                 query: str,
                 documents_weights: list[tuple[list[MinimalSource], float]],
+                print_hyde: bool = False
             ) -> None:
         hyde = self.dspy_interface.hyde_predict(question=query)
+
+        if not print_hyde:
+            self.logger.log_tqdm(
+                f'HyDE hypothetical passage: {hyde.hypothetical_passage!r}'
+            )
+        else:
+            self.logger.info('')
+            self.logger.box_info(
+                [hyde.hypothetical_passage],
+                'HyDE hypothetical passage'
+            )
+            self.logger.info('')
 
         documents_weights.append((
             self._transform_to_sources(self.chromadb_interface.search(
