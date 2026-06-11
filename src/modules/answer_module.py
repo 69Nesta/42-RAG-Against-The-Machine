@@ -146,7 +146,7 @@ class AnswerModule:
                 bm25s_interface: Bm25sInterface,
                 search_type: FileType,
             ) -> None:
-        from ..modules.search import SearchModule
+        from .search_module import SearchModule
 
         question: UnansweredQuestion = UnansweredQuestion(
             question=question_str

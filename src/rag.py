@@ -97,7 +97,7 @@ class RAG:
                 index_type: FileType = FileType.ALL,
                 overlap: int = 5
             ) -> None:
-        from .modules.indexer import IndexerModule
+        from .modules.indexer_module import IndexerModule
 
         try:
             IndexerModule(
@@ -123,7 +123,7 @@ class RAG:
                 file_name: str = 'search_results.json',
                 search_type: FileType = FileType.ALL,
             ) -> None:
-        from .modules.search import SearchModule
+        from .modules.search_module import SearchModule
 
         try:
             SearchModule(
@@ -153,7 +153,7 @@ class RAG:
                 save_directory: str = 'data/output/search_results',
                 search_type: FileType = FileType.ALL,
             ) -> None:
-        from .modules.search import SearchModule
+        from .modules.search_module import SearchModule
 
         try:
             SearchModule(
@@ -181,7 +181,7 @@ class RAG:
                 save_directory: str = 'data/output/search_results_and_answer',
                 search_type: FileType = FileType.ALL,
             ) -> None:
-        from .modules.answer import AnswerModule
+        from .modules.answer_module import AnswerModule
 
         try:
             AnswerModule(
@@ -208,7 +208,7 @@ class RAG:
                 'data/output/search_results/dataset_docs_public.json',
                 save_directory: str = 'data/output/search_results_and_answer',
             ) -> None:
-        from .modules.answer import AnswerModule
+        from .modules.answer_module import AnswerModule
 
         try:
             AnswerModule(
@@ -231,7 +231,7 @@ class RAG:
                 dataset_path: str =
                 'data/datasets/AnsweredQuestions/dataset_docs_public.json',
             ) -> None:
-        from .modules.evaluate import EvaluateModule
+        from .modules.evaluate_module import EvaluateModule
 
         try:
             EvaluateModule(
