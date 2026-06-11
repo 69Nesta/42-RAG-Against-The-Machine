@@ -1,4 +1,4 @@
-from .color import Color
+from .color_utils import Color
 
 from pydantic import ValidationError
 from tqdm import tqdm
