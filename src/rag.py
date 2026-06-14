@@ -3,8 +3,8 @@ from .interfaces import (
     ChunksInterface, Bm25sInterface,
     DspyInterface
 )
+from .utils import Logger, Color, Loader
 from .models import UnansweredQuestion
-from .utils import Logger, Color
 from .enums import FileType
 from .config import Config
 
@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 
 class RAG:
+    loader: Loader
     logger: Logger
     config: Config
 
@@ -54,6 +55,9 @@ class RAG:
     ) -> None:
         self.logger = Logger('RAG', Color.MAGENTA, verbose)
         self.logger.log('Initializing RAG...')
+        self.loader = Loader(self.logger)
+
+        self.loader.print_logo()
         self.config = Config(
             verbose=verbose,
 
