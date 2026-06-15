@@ -58,7 +58,7 @@ coming from ChromaDB through Reciprocal Rank Fusion (RRF).
 Configurable parameters:
 - `bm25_k1`
 - `bm25_b`
-- BM25 RRF weight
+- `bm25_rrf_weight`
 
 ## System Architecture
 
@@ -113,13 +113,13 @@ The pipeline is organized into modular components under `src/`, designed to supp
 Pluggable integrations for:
 
 * BM25 retrieval backend
-* Vector DB (e.g., ChromaDB)
+* Vector DB (ChromaDB)
 * Dataset loaders
 * Chunking and search result formatting
 * LLM / DSPy-style interfaces
 
 #### `src/models/` — Data Structures
-Defines core system entities:
+Defines core system entities (Pydantic models):
 
 * Documents and datasets
 * Chunks
@@ -149,11 +149,10 @@ Defines core system entities:
 ---
 
 ### 4. End-to-End Interaction Flow
-* Loader → produces structured documents
-* Indexer → chunks + indexes into BM25 / vector store
+* Indexer module → chunks + indexes into BM25 / vector store
 * Search module → retrieves + reranks relevant chunks
 * Answer module → generates final response using retrieved context
-* Evaluator → assesses system performance
+* Evaluating module → assesses system performance
 
 ## Features
 
@@ -197,7 +196,7 @@ The repository includes an evaluation module (`src/modules/evaluate_module.py`) 
 
 #### Docs
 
-| Metric    | Default | --use_chroma | --use_query_expansion | --use_query_expansion --use_chroma | --use_hyde | --use_query_expansion --use_chroma --use_hyde |
+| Metric    | `Default` | `--use_chroma` | `--use_query_expansion` | `--use_query_expansion --use_chroma` | `--use_hyde` | `--use_query_expansion --use_chroma --use_hyde` |
 |-----------|-------|-------|-------|-------|-------|-------|
 | Recall@1  | 66.0% | 57.0% | 40.0% | 59.0% | 54.0% | 54.0% |
 | Recall@3  | 81.0% | 57.0% | 65.0% | 78.0% | 76.0% | 68.0% |
@@ -206,7 +205,7 @@ The repository includes an evaluation module (`src/modules/evaluate_module.py`) 
 
 #### Code
 
-| Metric    | Default | --use_chroma | --use_query_expansion | --use_query_expansion --use_chroma | --use_hyde | --use_query_expansion --use_chroma --use_hyde |
+| Metric    | `Default` | `--use_chroma` | `--use_query_expansion` | `--use_query_expansion --use_chroma` | `--use_hyde` | `--use_query_expansion --use_chroma --use_hyde` |
 |-----------|-------|-------|-------|-------|-------|-------|
 | Recall@1  | 42.0% | 35.0% | 40.0% | 32.0% | 39.0% | 23.0% |
 | Recall@3  | 65.0% | 61.0% | 65.0% | 56.0% | 64.0% | 41.0% |
@@ -215,7 +214,7 @@ The repository includes an evaluation module (`src/modules/evaluate_module.py`) 
 
 ### Index Docs
 
-| Metric    | Default | --use_chroma | --use_query_expansion | --use_query_expansion --use_chroma | --use_hyde | --use_query_expansion --use_chroma --use_hyde |
+| Metric    | `Default` | `--use_chroma` | `--use_query_expansion` | `--use_query_expansion --use_chroma` | `--use_hyde` | `--use_query_expansion --use_chroma --use_hyde` |
 |-----------|-------|-------|-------|-------|-------|-------|
 | Recall@1  | 70.0% | 62.0% | 67.0% | 63.0% | 58.0% | 56.0% |
 | Recall@3  | 88.0% | 81.0% | 88.0% | 80.0% | 83.0% | 77.0% |
@@ -224,7 +223,7 @@ The repository includes an evaluation module (`src/modules/evaluate_module.py`) 
 
 ### Index Code
 
-| Metric    | Default | --use_chroma | --use_query_expansion | --use_query_expansion --use_chroma | --use_hyde | --use_query_expansion --use_chroma --use_hyde |
+| Metric    | `Default` | `--use_chroma` | `--use_query_expansion` | `--use_query_expansion --use_chroma` | `--use_hyde` | `--use_query_expansion --use_chroma --use_hyde` |
 |-----------|-------|-------|-------|-------|-------|-------|
 | Recall@1  | 42.0% | 34.0% | 39.0% | 31.0% | 38.0% | 23.0% |
 | Recall@3  | 65.0% | 60.0% | 64.0% | 56.0% | 64.0% | 43.0% |
