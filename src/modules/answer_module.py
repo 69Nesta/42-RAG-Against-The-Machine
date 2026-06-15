@@ -127,7 +127,7 @@ class AnswerModule:
 
         answer_str: str = self._answer_pipeline(
             dspy_answer.answer,
-            dspy_answer.sources
+            dspy_answer.used_documents
         )
 
         answer = AnsweredQuestion(
@@ -146,7 +146,7 @@ class AnswerModule:
                 bm25s_interface: Bm25sInterface,
                 search_type: FileType,
             ) -> None:
-        from ..modules.search import SearchModule
+        from .search_module import SearchModule
 
         question: UnansweredQuestion = UnansweredQuestion(
             question=question_str

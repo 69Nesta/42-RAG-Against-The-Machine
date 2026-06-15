@@ -1,6 +1,7 @@
 from ..utils import Logger, Color
 from ..config import Config
 
+from typing import cast
 import bm25s
 import os
 
@@ -55,7 +56,7 @@ class Bm25sInterface:
         self._assert_indexed()
         tokens = bm25s.tokenize(queries)
         results, _ = self.retriever.retrieve(tokens, k=k)
-        return results[0].tolist()
+        return cast(list[str], results[0].tolist())
 
     def _assert_indexed(self) -> None:
         if not self._is_indexed:

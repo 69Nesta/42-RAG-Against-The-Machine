@@ -26,7 +26,7 @@ class SearchResultsInterface:
         path: Path = Path(file)
         file_path: str = path.as_posix()
 
-        if path in self._cache:
+        if file_path in self._cache:
             self.logger.log_tqdm(f'Cache hit for {path!r}')
             return self._cache[file_path]
 
