@@ -278,13 +278,6 @@ make install-dataset
 This document describes how to use the `RAG` class through the command line,
 based on `uv run -m src <command> <flags>`.
 
-> **Note:** This guide is derived from the `RAG` class methods and their
-> docstrings. The exact flag syntax (`--flag=value` vs `--flag value`,
-> dashes vs underscores) depends on how `src/__main__.py` wires up the CLI
-> (e.g. `python-fire`, `argparse`, `click`, etc.). The examples below use the
-> common `--flag_name=value` convention — adjust if your entry point expects
-> a different format.
-
 ---
 
 ### General Syntax
@@ -488,9 +481,6 @@ values include something like:
 - `ALL` – include both documentation and code files
 - `DOCS` – documentation files only
 - `CODE` – code files only
-
-> Check `src/enums.py` for the exact member names and string values, since
-> these aren't visible in the `RAG` class itself.
 
 ---
 
