@@ -6,7 +6,7 @@ MYPY_FLAGS = --warn-return-any --warn-unused-ignores --ignore-missing-imports --
 install:
 	uv sync --cache-dir ~/goinfre/.uv_cache sync
 
-install-vllm:
+install-dataset:
 	@mkdir -p data/raw
 	@unzip vllm-0.10.1.zip -d data/raw
 	@echo "vllm-0.10.1.zip extracted to data/raw/vllm-0.10.1"
@@ -33,4 +33,4 @@ lint-strict:
 	$(UV_PY) flake8 $(SRCS_DIR)
 	$(UV_PY) mypy $(SRCS_DIR) --strict
 
-.PHONY: install run debug clean fclean lint lint-strict
+.PHONY: install run debug clean fclean lint lint-strict install-dataset
