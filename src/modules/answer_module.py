@@ -22,7 +22,6 @@ from ..config import Config
 from pydantic import BaseModel, Field, model_validator
 from pathlib import Path
 from tqdm import tqdm
-import os
 
 
 class AnswerConfig(BaseModel):
