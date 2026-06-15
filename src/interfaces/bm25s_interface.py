@@ -92,6 +92,8 @@ class Bm25sInterface:
         '''
         self._assert_indexed()
         tokens = bm25s.tokenize(queries)
+        if not queries:
+            return []
         results, _ = self.retriever.retrieve(tokens, k=k)
         return cast(list[str], results[0].tolist())
 

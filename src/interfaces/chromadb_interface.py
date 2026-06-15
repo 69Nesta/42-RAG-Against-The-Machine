@@ -145,6 +145,9 @@ class ChromaDBInterface:
         if not self.enabled:
             return []
 
+        if not queries:
+            return []
+
         results = self.get_collection().query(
             query_texts=queries,
             n_results=k,
