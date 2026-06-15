@@ -30,7 +30,7 @@ class RAG:
         temperature: float = 0.3,
         api_base: str = 'http://localhost:11434/v1',
         api_key: str = 'EMPTY',
-        max_tokens: int = 102400,
+        max_tokens: int = 2048,
         dspy_cache: bool = True,
 
         use_query_expansion: bool = False,
