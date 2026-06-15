@@ -60,6 +60,21 @@ Configurable parameters:
 - `bm25_b`
 - `bm25_rrf_weight`
 
+## Screenshots
+### Generated Answers
+
+#### Default Answer
+![Default Answer](assets/answer.png)
+
+#### Answer with Query Expansion
+![Answer with Query Expansion](assets/answer_query_expansion.png)
+
+#### Answer with Query Expansion + ChromaDB
+![Answer with Query Expansion + ChromaDB](assets/answer_query_expansion+chroma.png)
+
+#### Answer with HyDE
+![Answer with HyDE](assets/answer_hyde.png)
+
 ## System Architecture
 
 The pipeline is organized into modular components under `src/`, designed to support a full RAG-style workflow: ingestion → indexing → retrieval → answering → evaluation.
