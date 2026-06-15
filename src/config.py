@@ -3,6 +3,13 @@ from pathlib import Path
 
 
 class Config(BaseModel):
+    '''
+    Configuration class for the RAG system.
+    This class holds various configuration parameters that control the behavior
+    of the system, including model settings, API keys, and paths for data
+    storage.
+    '''
+
     verbose: bool
 
     model_name: str
@@ -34,6 +41,15 @@ class Config(BaseModel):
 
     @model_validator(mode='after')
     def check_paths_differ(self) -> 'Config':
+        '''
+        Validates that the paths for the processed BM25 index and processed
+        chunks are different and that they are of the correct type (file or
+        directory).
+        Raises:
+            ValueError: If the paths are the same or if they are not of the
+            expected type (file or directory).
+        '''
+
         if self.processed_bm25_index_path == self.processed_chunks_path:
             raise ValueError(
                 'processed_bm25_index_path and processed_chunks_path must '

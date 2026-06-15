@@ -21,12 +21,19 @@ from tqdm import tqdm
 
 
 class SearchConfig(BaseModel):
+    '''
+    Configuration class for the SearchModule.
+    '''
+
     k: int = Field(..., gt=0, le=10)
     save_directory: str = Field(..., min_length=1)
     search_type: FileType
 
     @model_validator(mode='after')
     def check_paths_differ(self) -> 'SearchConfig':
+        '''
+        Validates that the save_directory is a directory and not a file.
+        '''
         checks = [
             (self.save_directory, True),
         ]
@@ -63,6 +70,24 @@ class SearchModule:
                 dspy_interface: DspyInterface,
                 config: Config,
             ) -> None:
+        '''
+        Initializes the SearchModule with the provided parameters and
+        interfaces.
+
+        Args:
+            k (int): The number of top results to retrieve.
+            save_directory (str): The directory where search results will be
+            saved.
+            search_type (FileType): The type of files to search.
+            chromadb_interface (ChromaDBInterface): Interface for ChromaDB
+            operations.
+            dataset_interface (DatasetInterface): Interface for dataset
+            operations.
+            chunks_interface (ChunksInterface): Interface for chunk operations.
+            bm25s_interface (Bm25sInterface): Interface for BM25 operations.
+            dspy_interface (DspyInterface): Interface for Dspy operations.
+            config (Config): Application configuration settings.
+        '''
         self.app_config = config
         self.chromadb_interface = chromadb_interface
         self.dataset_interface = dataset_interface
@@ -85,7 +110,13 @@ class SearchModule:
                 self,
                 sources: list[MinimalSource]
             ) -> None:
+        '''
+        Prints the retrieved sources in a formatted table.
 
+        Args:
+            sources (list[MinimalSource]): A list of MinimalSource objects to
+            be printed.
+        '''
         self.logger.info('')
         self.logger.table_info(
             headers=['#', 'File Path', 'Character Range'],
@@ -108,7 +139,21 @@ class SearchModule:
                 print_expanded: bool = False,
                 print_hyde: bool = False
             ) -> list[MinimalSource]:
+        '''
+        Searches for sources based on the provided query and returns a list of
+        MinimalSource objects.
 
+        Args:
+            query (UnansweredQuestion): The query object containing the
+            question.
+            print_expanded (bool, optional): Whether to print expanded query
+            information. Defaults to False.
+            print_hyde (bool, optional): Whether to print HyDE information.
+            Defaults to False.
+        Returns:
+            list[MinimalSource]: A list of MinimalSource objects retrieved
+            based on the query.
+        '''
         if not query.question.strip():
             return []
 
@@ -149,6 +194,15 @@ class SearchModule:
         return self._apply_rrf(documents_weights, self.config.k)
 
     def search(self, question: UnansweredQuestion, file: str) -> None:
+        '''
+        Searches for sources based on the provided question and saves the
+        results to a specified file.
+
+        Args:
+            question (UnansweredQuestion): The question object containing the
+            question text and ID.
+            file (str): The file path where the search results will be saved.
+        '''
         self.logger.log('Starting search...')
 
         if not question.question.strip():
@@ -193,6 +247,14 @@ class SearchModule:
         )
 
     def search_dataset(self, dataset_path: str) -> None:
+        '''
+        Searches for sources for each question in the dataset and saves the
+        results to a specified file.
+
+        Args:
+            dataset_path (str): The path to the dataset file containing
+            questions to be searched.
+        '''
         start_time: TimeUtils = TimeUtils()
         path: Path = Path(dataset_path)
         if not path.exists() or not path.is_file():
@@ -250,6 +312,15 @@ class SearchModule:
                 self,
                 documents: list[str]
             ) -> list[MinimalSource]:
+        '''
+        Transforms a list of document IDs into a list of MinimalSource objects.
+
+        Args:
+            documents (list[str]): A list of document IDs to be transformed.
+        Returns:
+            list[MinimalSource]: A list of MinimalSource objects corresponding
+            to the provided document IDs.
+        '''
         return [
             self.chunks_interface.get_metadata_by_id(doc_id)
             for doc_id in documents
@@ -259,6 +330,16 @@ class SearchModule:
                 self,
                 sources: list[MinimalSource]
             ) -> list[MinimalSource]:
+        '''
+        Filters the provided sources based on the configured search type.
+
+        Args:
+            sources (list[MinimalSource]): A list of MinimalSource objects to
+            be filtered.
+        Returns:
+            list[MinimalSource]: A list of MinimalSource objects that match the
+            configured search type.
+        '''
         return [
             source
             for source in sources
@@ -274,6 +355,20 @@ class SearchModule:
                 documents_weights: list[tuple[list[MinimalSource], float]],
                 print_expanded: bool = False
             ) -> None:
+        '''
+        Expands the query using the Dspy interface and adds the expanded
+        sources to the documents_weights list.
+
+        Args:
+            k (int): The number of top results to retrieve.
+            query (str): The original query string to be expanded.
+            documents_weights (list[tuple[list[MinimalSource], float]]): A
+            list of tuples containing lists of MinimalSource objects and their
+            corresponding weights.
+            print_expanded (bool, optional): Whether to print expanded query
+            information. Defaults to False.
+        '''
+
         expended_query = self.dspy_interface.expand_query_predict(query=query)
 
         if not print_expanded:
@@ -322,6 +417,20 @@ class SearchModule:
                 documents_weights: list[tuple[list[MinimalSource], float]],
                 print_hyde: bool = False
             ) -> None:
+        '''
+        Generates a hypothetical passage using the Dspy interface and adds the
+        corresponding sources to the documents_weights list.
+
+        Args:
+            k (int): The number of top results to retrieve.
+            query (str): The original query string for which the hypothetical
+            passage will be generated.
+            documents_weights (list[tuple[list[MinimalSource], float]]): A
+            list of tuples containing lists of MinimalSource objects and their
+            corresponding weights.
+            print_hyde (bool, optional): Whether to print HyDE information.
+            Defaults to False.
+        '''
         hyde = self.dspy_interface.hyde_predict(question=query)
 
         if not print_hyde:
@@ -349,6 +458,20 @@ class SearchModule:
                 documents: list[tuple[list[MinimalSource], float]],
                 k: int
             ) -> list[MinimalSource]:
+        '''
+        Applies the Reciprocal Rank Fusion (RRF) algorithm to combine the
+        results from different sources and returns the top k MinimalSource
+        objects.
+
+        Args:
+            documents (list[tuple[list[MinimalSource], float]]): A list of
+            tuples containing lists of MinimalSource objects and their
+            corresponding weights.
+            k (int): The number of top results to retrieve.
+        Returns:
+            list[MinimalSource]: A list of the top k MinimalSource objects
+            after applying the RRF algorithm.
+        '''
         scores: dict[MinimalSource, float] = {}
         for docs, weight in documents:
             for rank, doc_id in enumerate(self._filter_sources(docs)):
@@ -360,6 +483,15 @@ class SearchModule:
         return fused_ids[:k]
 
     def _save(self, search_results: StudentSearchResults, file: str) -> None:
+        '''
+        Saves the search results to a JSON file in the specified save
+        directory.
+
+        Args:
+            search_results (StudentSearchResults): The search results to be
+            saved.
+            file (str): The file name where the search results will be saved.
+        '''
         save_path: Path = Path(self.config.save_directory) / file
         save_path.parent.mkdir(parents=True, exist_ok=True)
 

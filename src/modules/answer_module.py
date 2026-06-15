@@ -25,10 +25,18 @@ from tqdm import tqdm
 
 
 class AnswerConfig(BaseModel):
+    '''
+    Configuration model for the AnswerModule.
+    '''
+
     save_directory: str = Field(..., min_length=1)
 
     @model_validator(mode='after')
     def check_paths_differ(self) -> 'AnswerConfig':
+        '''
+        Validates that the save directory is not the same as the root path of
+        the application configuration.
+        '''
         checks = [
             (self.save_directory, True),
         ]
@@ -43,6 +51,11 @@ class AnswerConfig(BaseModel):
 
 
 class AnswerModule:
+    '''
+    A module for answering questions based on retrieved sources and saving the
+    answers to a specified directory.
+    '''
+
     logger: Logger
     app_config: Config
 
@@ -64,13 +77,30 @@ class AnswerModule:
                 dspy_interface: DspyInterface,
                 config: Config,
             ) -> None:
+        '''
+        Initializes the AnswerModule with the specified save directory and
+        interfaces for ChromaDB, dataset, chunks, and Dspy.
+
+        Args:
+            save_directory (str): The directory where answers will be saved.
+            chromadb_interface (ChromaDBInterface): Interface for interacting
+            with ChromaDB.
+            dataset_interface (DatasetInterface): Interface for interacting
+            with the dataset.
+            chunks_interface (ChunksInterface): Interface for interacting with
+            text chunks.
+            dspy_interface (DspyInterface): Interface for interacting with
+            Dspy.
+            config (Config): The application configuration.
+        '''
+
         self.app_config = config
         self.chromadb_interface = chromadb_interface
         self.dataset_interface = dataset_interface
         self.chunks_interface = chunks_interface
         self.dspy_interface = dspy_interface
 
-        self.logger = Logger('AnwerModule', Color.CYAN, config.verbose)
+        self.logger = Logger('AnswerModule', Color.CYAN, config.verbose)
         self.logger.log('Initializing Answer Module...')
 
         self.config = AnswerConfig(
@@ -78,6 +108,18 @@ class AnswerModule:
         )
 
     def _answer_pipeline(self, answer: str, sources_ids: list[str]) -> str:
+        '''
+        Processes the answer and appends the sources used to generate the
+        answer.
+
+        Args:
+            answer (str): The generated answer.
+            sources_ids (list[str]): List of source IDs used to generate the
+            answer.
+        Returns:
+            str: The processed answer with sources appended.
+        '''
+
         sources: list[ChunkContentModel] = []
 
         for source_id in sources_ids:
@@ -113,6 +155,18 @@ class AnswerModule:
                 question: UnansweredQuestion,
                 sources: list[MinimalSource]
             ) -> AnsweredQuestion:
+        '''
+        Answers the given question using the provided sources and returns an
+        AnsweredQuestion object containing the answer and sources.
+
+        Args:
+            question (UnansweredQuestion): The question to be answered.
+            sources (list[MinimalSource]): List of sources to be used for
+            answering the question.
+        Returns:
+            AnsweredQuestion: An object containing the question, answer, and
+            sources used.
+        '''
         self.logger.log_tqdm(f'Answering question: {question.question!r}...')
 
         documents: list[ChunkContentModel] = [
@@ -146,6 +200,18 @@ class AnswerModule:
                 bm25s_interface: Bm25sInterface,
                 search_type: FileType,
             ) -> None:
+        '''
+        Answers a single question by retrieving sources and generating an
+        answer, then saves the answer to a JSON file.
+
+        Args:
+            question_str (str): The question to be answered.
+            k (int): The number of top sources to retrieve for answering the
+            question.
+            bm25s_interface (Bm25sInterface): Interface for interacting with
+            BM25s for source retrieval.
+            search_type (FileType): The type of files to search for sources.
+        '''
         from .search_module import SearchModule
 
         question: UnansweredQuestion = UnansweredQuestion(
@@ -214,6 +280,14 @@ class AnswerModule:
         )
 
     def answer_dataset(self, student_search_results_path: str) -> None:
+        '''
+        Answers questions from a dataset of student search results and saves
+        the answers to a JSON file in the specified save directory.
+
+        Args:
+            student_search_results_path (str): The path to the JSON file
+            containing student search results to be answered.
+        '''
         start_time: TimeUtils = TimeUtils()
         self.search_results_interface = SearchResultsInterface(self.app_config)
         try:
@@ -270,6 +344,14 @@ class AnswerModule:
         )
 
     def _save(self, answers: StudentSearchResultsAndAnswer, file: str) -> None:
+        '''
+        Saves the provided answers to a JSON file in the configured save
+        directory.
+
+        Args:
+            answers (StudentSearchResultsAndAnswer): The answers to be saved.
+            file (str): The name of the file to save the answers to.
+        '''
         save_path: Path = Path(self.config.save_directory) / file
         save_path.parent.mkdir(parents=True, exist_ok=True)
 

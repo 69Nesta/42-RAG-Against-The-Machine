@@ -70,6 +70,11 @@ class HyDESignature(dspy.Signature):
 
 
 class DspyInterface:
+    '''
+    Interface for managing interactions with the dspy library, including
+    configuring the language model and defining prediction signatures for
+    answering questions and expanding queries.
+    '''
     logger: Logger
     app_config: Config
 
@@ -79,6 +84,13 @@ class DspyInterface:
     expand_query_predict: dspy.Predict
 
     def __init__(self, config: Config) -> None:
+        '''
+        Initializes the DspyInterface with the provided configuration.
+
+        Args:
+            config: The application configuration containing paths and
+            settings.
+        '''
         self.app_config = config
         self.logger = Logger('DspyInterface', Color.MAGENTA, config.verbose)
 

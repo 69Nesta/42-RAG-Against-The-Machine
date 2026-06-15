@@ -16,6 +16,9 @@ from pathlib import Path
 
 
 class EvaluateConfig(BaseModel):
+    '''
+    Configuration model for the EvaluateModule.
+    '''
     student_answer_path: str = Field(..., min_length=1)
     dataset_path: str = Field(..., min_length=1)
 
@@ -36,6 +39,13 @@ class EvaluateConfig(BaseModel):
 
 
 class EvaluateModule:
+    '''
+    A module for evaluating student search results against a dataset of
+    questions and their corresponding sources. It calculates metrics such as
+    Recall@K and Mean Reciprocal Rank (MRR) to assess the quality of the
+    search results.
+    '''
+
     logger: Logger
     app_config: Config
 
@@ -53,6 +63,21 @@ class EvaluateModule:
                 chunks_interface: ChunksInterface,
                 config: Config,
             ) -> None:
+        '''
+        Initializes the EvaluateModule with the provided paths, interfaces,
+        and configuration.
+
+        Args:
+            student_answer_path (str): Path to the student's search results
+            JSON file.
+            dataset_path (str): Path to the dataset JSON file containing
+            questions and sources.
+            dataset_interface (DatasetInterface): Interface for loading the
+            dataset.
+            chunks_interface (ChunksInterface): Interface for handling text
+            chunks.
+            config (Config): Application configuration.
+        '''
         self.app_config = config
         self.dataset_interface = dataset_interface
         self.chunks_interface = chunks_interface
@@ -70,6 +95,17 @@ class EvaluateModule:
 
     @staticmethod
     def overlap_ratio(doc: MinimalSource, origin: MinimalSource) -> float:
+        '''
+        Calculates the overlap ratio between two MinimalSource objects based
+        on their character indices. The overlap ratio is defined as the length
+        of the overlapping segment divided by the length of the origin segment.
+
+        Args:
+            doc (MinimalSource): The first MinimalSource object.
+            origin (MinimalSource): The second MinimalSource object.
+        Returns:
+            float: The overlap ratio between the two documents.
+        '''
         overlap_start: int = max(
             doc.first_character_index,
             origin.first_character_index
@@ -88,6 +124,18 @@ class EvaluateModule:
         return overlap / origin_length if origin_length > 0 else 0.0
 
     def doc_is_valid(self, doc: MinimalSource, origin: MinimalSource) -> bool:
+        '''
+        Determines if a given document (doc) is considered valid with respect
+        to an origin document (origin) based on their file paths and overlap
+        ratio. A document is considered valid if it has the same file path as
+        the origin and the overlap ratio is greater than or equal to 0.05.
+
+        Args:
+            doc (MinimalSource): The document to be evaluated.
+            origin (MinimalSource): The reference document for comparison.
+        Returns:
+            bool: True if the document is valid, False otherwise.
+        '''
         if Path(doc.file_path) != Path(origin.file_path):
             return False
 
@@ -99,6 +147,23 @@ class EvaluateModule:
                 docs: list[MinimalSource],
                 k: int
             ) -> float:
+        '''
+        Evaluates the Recall@K metric for a given set of origin documents and
+        retrieved documents. Recall@K measures the proportion of origin
+        documents that are found within the top K retrieved documents.
+
+        Args:
+            origins (list[MinimalSource]): The list of origin documents to be
+            evaluated.
+            docs (list[MinimalSource]): The list of retrieved documents to be
+            compared against the origins.
+            k (int): The number of top retrieved documents to consider for
+            the evaluation.
+        Returns:
+            float: The Recall@K score, which is the proportion of origin
+            documents that are found within the top K retrieved documents. A
+            higher score indicates better retrieval performance.
+        '''
         founds: int = 0
 
         for origin in origins:
@@ -115,6 +180,23 @@ class EvaluateModule:
                 origins: list[MinimalSource],
                 docs: list[MinimalSource]
             ) -> float:
+        '''
+        Evaluates the Mean Reciprocal Rank (MRR) metric for a given set of
+        origin documents and retrieved documents. MRR measures the average
+        reciprocal rank of the first relevant document found in the retrieved
+        documents for each origin document.
+
+        Args:
+            origins (list[MinimalSource]): The list of origin documents to be
+            evaluated.
+            docs (list[MinimalSource]): The list of retrieved documents to be
+            compared against the origins.
+        Returns:
+            float: The Mean Reciprocal Rank (MRR) score, which is the average
+            of the reciprocal ranks of the first relevant document found for
+            each origin document. If no relevant document is found for an
+            origin, the reciprocal rank for that origin is considered to be 0.
+        '''
 
         for origin in origins:
             for idx, doc in enumerate(docs, start=1):
@@ -124,6 +206,12 @@ class EvaluateModule:
         return 0.0
 
     def _evaluate(self) -> None:
+        '''
+        Performs the evaluation of student search results against the dataset
+        of questions and their corresponding sources. It calculates metrics
+        such as Recall@K and Mean Reciprocal Rank (MRR) and logs the results.
+        '''
+
         dataset: RagDataset = self.dataset_interface.load_dataset(
             self.config.dataset_path
         )

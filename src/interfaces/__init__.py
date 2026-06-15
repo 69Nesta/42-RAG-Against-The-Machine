@@ -1,3 +1,7 @@
+'''
+This module contains the interfaces for the different components of the system.
+'''
+
 from .search_results_interface import SearchResultsInterface
 from .chromadb_interface import ChromaDBInterface
 from .dataset_interface import DatasetInterface

@@ -6,6 +6,10 @@ from pathlib import Path
 
 
 class SearchResultsInterface:
+    '''
+    Interface for managing search results, including loading search results
+    from JSON files and caching them for efficient retrieval.
+    '''
     logger: Logger
     app_config: Config
 
@@ -15,6 +19,13 @@ class SearchResultsInterface:
                 self,
                 config: Config,
             ) -> None:
+        '''
+        Initializes the SearchResultsInterface with the provided configuration.
+
+        Args:
+            config: The application configuration containing paths and
+            settings.
+        '''
         self.app_config = config
         self.logger = Logger(
             'SearchResultsInterface',
@@ -23,6 +34,18 @@ class SearchResultsInterface:
         )
 
     def get_search_results(self, file: str) -> StudentSearchResults:
+        '''
+        Retrieves search results from the specified JSON file, utilizing
+        caching to avoid redundant file reads.
+
+        Args:
+            file: The path to the JSON file containing the search results.
+        Returns:
+            An instance of StudentSearchResults loaded from the specified file.
+        Raises:
+            ValueError: If the file path is not provided.
+            FileNotFoundError: If the specified file does not exist.
+        '''
         path: Path = Path(file)
         file_path: str = path.as_posix()
 
