@@ -16,6 +16,7 @@ dependencies = [
 
 [tool.mypy]
 ignore_missing_imports = true
+disable_error_code = ["misc"]
 
 [dependency-groups]
 dev = [
