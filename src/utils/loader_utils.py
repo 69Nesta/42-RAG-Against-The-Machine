@@ -2,6 +2,9 @@ from .logger_utils import Logger
 
 
 class Loader:
+    '''
+    A utility class for displaying a logo and logging messages.
+    '''
     logger: Logger
 
     LOGO: list[str] = [
@@ -21,8 +24,14 @@ class Loader:
     ]
 
     def __init__(self, logger: Logger) -> None:
+        '''
+        Initializes the Loader instance with a logger.
+        '''
         self.logger = logger
 
     def print_logo(self) -> None:
+        '''
+        Prints the logo using the logger.
+        '''
         for line in self.LOGO:
             self.logger.info('              ' + line)

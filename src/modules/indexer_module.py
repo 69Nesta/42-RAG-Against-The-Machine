@@ -13,6 +13,10 @@ import re
 
 
 class IndexerConfig(BaseModel):
+    '''
+    Configuration model for the IndexerModule.
+    '''
+
     root_path: str
     maximum_chunk_size: int = Field(..., gt=0, le=2000)
     index_type: FileType
@@ -21,6 +25,11 @@ class IndexerConfig(BaseModel):
 
 
 class IndexerModule:
+    '''
+    A module for indexing files in a specified directory, creating chunks of
+    text, and storing them in a ChromaDB and BM25 index.
+    '''
+
     logger: Logger
     app_config: Config
     chromadb_interface: ChromaDBInterface
@@ -55,6 +64,24 @@ class IndexerModule:
                 bm25s_interface: Bm25sInterface,
                 config: Config,
             ) -> None:
+        '''
+        Initializes the IndexerModule with the specified configuration and
+        interfaces.
+
+        Args:
+            root_path (str): The root directory path to explore for files.
+            maximum_chunk_size (int): The maximum size of each text chunk.
+            index_type (FileType): The type of files to index (CODE or DOCS).
+            overlap (int): The percentage of overlap between consecutive
+            chunks.
+            chromadb_interface (ChromaDBInterface): The interface for
+            interacting with ChromaDB.
+            chunks_interface (ChunksInterface): The interface for managing
+            chunk metadata.
+            bm25s_interface (Bm25sInterface): The interface for managing BM25
+            index.
+            config (Config): The application configuration.
+        '''
         self.app_config = config
         self.chromadb_interface = chromadb_interface
         self.chunks_interface = chunks_interface
@@ -71,6 +98,11 @@ class IndexerModule:
         )
 
     def index(self) -> None:
+        '''
+        Starts the indexing process by exploring the specified root directory,
+        creating text chunks, and saving them to the ChromaDB and BM25 index.
+        '''
+
         start_time: TimeUtils = TimeUtils()
 
         self.bm25s_interface.clear()
@@ -86,6 +118,11 @@ class IndexerModule:
         )
 
     def _explore(self) -> None:
+        '''
+        Explores the specified root directory for files matching the allowed
+        extensions based on the index type and stores their paths.
+        '''
+
         path: Path = Path(self.config.root_path)
         self.files_path = []
         self.logger.log(
@@ -107,6 +144,11 @@ class IndexerModule:
         )
 
     def _initalize_splitters(self) -> None:
+        '''
+        Initializes the text splitters for different file types based on the
+        specified maximum chunk size and overlap percentage.
+        '''
+
         chunk_size: int = self.config.maximum_chunk_size
         chunk_overlap: int = chunk_size * (self.config.overlap // 100)
 
@@ -131,6 +173,12 @@ class IndexerModule:
         )
 
     def _index_files(self) -> None:
+        '''
+        Indexes the files found in the specified root directory by reading
+        their content, creating text chunks, and saving them to the ChromaDB
+        and BM25 index.
+        '''
+
         if not self.files_path:
             self.logger.warning(
                 'No files found to index. Please check the root path and '
@@ -261,6 +309,11 @@ class IndexerModule:
             )
 
     def _create_config_files(self) -> None:
+        '''
+        Creates necessary directories and files for storing the BM25 index and
+        chunk metadata based on the application configuration.
+        '''
+
         folders: list[str] = [
             self.app_config.processed_bm25_index_path,
         ]

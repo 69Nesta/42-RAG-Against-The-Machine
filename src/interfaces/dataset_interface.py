@@ -6,12 +6,24 @@ from pathlib import Path
 
 
 class DatasetInterface:
+    '''
+    Interface for managing datasets, including loading and caching datasets
+    from JSON files.
+    '''
+
     logger: Logger
     config: Config
 
     _cache: dict[str, RagDataset]
 
     def __init__(self, config: Config) -> None:
+        '''
+        Initializes the DatasetInterface with the provided configuration.
+
+        Args:
+            config: The application configuration containing paths and
+            settings.
+        '''
         self.config = config
         self.logger = Logger(
             'DatasetInterface',
@@ -25,6 +37,18 @@ class DatasetInterface:
                 self,
                 file_path: str,
             ) -> RagDataset:
+        '''
+        Loads a dataset from the specified JSON file path, utilizing caching
+        to avoid redundant file reads.
+
+        Args:
+            file_path: The path to the JSON file containing the dataset.
+        Returns:
+            An instance of RagDataset loaded from the specified file.
+        Raises:
+            ValueError: If the file path is not provided.
+            FileNotFoundError: If the specified file does not exist.
+        '''
         if not file_path:
             raise ValueError(
                 f'No file name found for index type {file_path}.'
