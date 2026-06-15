@@ -19,10 +19,10 @@ class AnswerSignature(dspy.Signature):
             'documents. Do not use Markdown.'
         )
     )
-    sources: list[str] = dspy.OutputField(
+    used_documents: list[str] = dspy.OutputField(
         description=(
-            'List of source identifiers from the provided documents that were '
-            'used to generate the answer.'
+            'List of id identifiers from the provided documents'
+            ' that were used to generate the answer.'
         )
     )
 

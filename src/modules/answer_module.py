@@ -22,6 +22,7 @@ from ..config import Config
 from pydantic import BaseModel, Field, model_validator
 from pathlib import Path
 from tqdm import tqdm
+import os
 
 
 class AnswerConfig(BaseModel):
@@ -127,7 +128,7 @@ class AnswerModule:
 
         answer_str: str = self._answer_pipeline(
             dspy_answer.answer,
-            dspy_answer.sources
+            dspy_answer.used_documents
         )
 
         answer = AnsweredQuestion(

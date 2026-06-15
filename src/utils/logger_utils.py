@@ -232,7 +232,7 @@ class Logger:
                 content: list[str],
                 title: str,
                 width: int | None = None,
-                max_width: int | None = (os.get_terminal_size().columns - 30)
+                max_width: int | None = (os.get_terminal_size().columns - 39)
             ) -> None:
         '''Print a box with the given content and title.
 
