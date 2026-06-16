@@ -41,24 +41,79 @@ Chunk size and overlap are configurable through CLI arguments and
 
 ## Retrieval Method
 
-The retrieval layer is based on **BM25S**, a modern and efficient implementation
-of the BM25 ranking algorithm recommended by the project subject.
+The retrieval layer is primarily based on **BM25S**, a modern and efficient
+implementation of the BM25 ranking algorithm.
 
-Unlike TF-IDF, BM25 introduces:
-- term frequency saturation (`k1`)
-- document length normalization (`b`)
+Within a Retrieval-Augmented Generation (RAG) pipeline, BM25 acts as the
+lexical retriever responsible for finding documents that contain terms closely
+related to the user's query. This approach is particularly effective for
+technical documentation, source code repositories, API references, and other
+domains where exact keyword matching remains highly valuable.
 
-which generally produces better rankings for long technical documents and source
-code repositories.
+Compared to TF-IDF, BM25 introduces:
 
-The BM25 index is built during the indexing phase and persisted on disk for
-fast startup. Retrieval scores can be combined with semantic search results
-coming from ChromaDB through Reciprocal Rank Fusion (RRF).
+* term frequency saturation (`k1`)
+* document length normalization (`b`)
 
-Configurable parameters:
-- `bm25_k1`
-- `bm25_b`
-- `bm25_rrf_weight`
+These improvements generally provide better ranking quality, especially for
+long documents and code-heavy datasets.
+
+The BM25 index is built during the indexing phase and persisted on disk,
+allowing fast startup and efficient query execution.
+
+### Hybrid Retrieval
+
+When enabled, BM25 results can be combined with semantic search results from
+ChromaDB using **Reciprocal Rank Fusion (RRF)**.
+
+This hybrid approach combines:
+
+* the precision of lexical search (BM25)
+* the semantic understanding of vector search (ChromaDB)
+* robust ranking through rank fusion
+
+### Configurable Parameters
+
+* `bm25_k1`
+* `bm25_b`
+* `rrf_weights_bm25`
+
+## Bonus Features (Disabled by Default)
+
+The project includes several optional retrieval enhancements that can be
+enabled through configuration.
+
+### ChromaDB Semantic Search
+
+Documents can be embedded and stored in ChromaDB to support semantic retrieval.
+
+Unlike BM25, semantic search can retrieve relevant documents even when they do
+not share the exact keywords used in the query.
+
+### HyDE (Hypothetical Document Embeddings)
+
+HyDE improves retrieval by generating a hypothetical answer document from the
+user query and using its embedding for semantic search.
+
+This technique can increase recall for ambiguous or complex questions.
+
+### Query Expansion
+
+Query expansion generates multiple reformulations of the original query before
+retrieval.
+
+Results from the expanded queries are merged and ranked, improving the chances
+of retrieving relevant documents that use different terminology.
+
+Related configuration options:
+
+* `use_chromadb`
+* `use_hyde`
+* `use_query_expansion`
+* `rrf_weights_chroma`
+* `rrf_weights_chroma_expanded`
+* `rrf_weights_bm25_expanded`
+* `rrf_weights_HyDE`
 
 ## Screenshots
 ### Generated Answers
